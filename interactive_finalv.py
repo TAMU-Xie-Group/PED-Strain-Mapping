@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator
 from multiprocessing import Array
-from numpy import sqrt, array, ndenumerate, arange, min, max, percentile,\
+from numpy import sqrt, array, ndenumerate, arange, min, max, percentile, \
     linspace, nonzero, zeros, around, unravel_index, argmax, mean
 from numpy.ctypeslib import as_array
 from pandas import DataFrame
@@ -27,7 +27,6 @@ from skimage.feature import match_template
 from scipy.ndimage import gaussian_filter
 from skimage.restoration import denoise_nl_means, estimate_sigma
 
-
 file = None
 distances = None
 single_values = None
@@ -40,8 +39,8 @@ def set_curr_func(func_name):
     entry.delete(0, tk.END)
     if curr_func == "load_file":
         entry.bind("<Return>", get_entry)
-        label1['text'] = label1[
-                             'text'] + "Please enter the path of the input file in the text box provided then press Enter.\n"
+        label1['text'] = label1['text'] + "Please enter the path of the input file in the text box provided then " \
+                                          "press Enter.\n "
     elif curr_func == "to_csv":
         if file is None:
             label1['text'] = label1['text'] + "Please load a file before saving data.\n"
@@ -49,15 +48,15 @@ def set_curr_func(func_name):
             label1['text'] = label1['text'] + "Please analyze the file before saving data.\n"
         else:
             entry.bind("<Return>", get_entry)
-            label1['text'] = label1[
-                                 'text'] + "Please enter the path of the file you want to save to in the text box provided then press Enter.\n"
+            label1['text'] = label1['text'] + "Please enter the path of the file you want to save to in the text box " \
+                                              "provided then press Enter.\n "
     elif curr_func == "analysis":
         if file is None:
             label1['text'] = label1['text'] + "Please load a file before starting analysis.\n"
         else:
             entry.bind("<Return>", get_entry)
-            label1['text'] = label1[
-                                 'text'] + "Please enter the number of rows and columns you would like to analyze, as integers, seperated by spaces. Press Enter when ready.\n"
+            label1['text'] = label1['text'] + "Please enter the number of rows and columns you would like to analyze, " \
+                                              "as integers, separated by spaces. Press Enter when ready.\n "
 
 
 def get_entry(event):
@@ -104,8 +103,8 @@ def find_center(im, peak):
         for (a, b) in y:
             length = len(im)
             d = distance(350, 380, b, a)
-            #d = distance(length/2, length/2, b, a)
-            if int(a) > 340 and int(b) > 340 and d < minimum and int(a) < 390 and int(b) < 370:
+            # d = distance(length/2, length/2, b, a)
+            if 340 < int(a) < 390 and 340 < int(b) < 370 and d < minimum:
                 minimum = d
                 center = (b, a)
 
@@ -117,7 +116,7 @@ def multiprocessing_func(values):
     s = PixelatedSTEM(file.inav[values[0], values[1]])
 
     original = array(s)
-    ############################################################################################################################
+    ####################################################################################################################
     # # FILTERS
     # Gaussian is the default filter
     # Uncomment nlm (non-local means) or wien (wiener) to use those filters
@@ -126,11 +125,11 @@ def multiprocessing_func(values):
     gaussian = gaussian_filter(original, 1.15 * sigma_est)
 
     # # patch_size for 580 - 1, patch_size for 144 = 3
-    #nlm = denoise_nl_means(original, h=1.15*sigma_est, fast_mode=True, patch_size=1, patch_distance=6, )
-    #wien = wiener(original, 5, 3)
+    # nlm = denoise_nl_means(original, h=1.15*sigma_est, fast_mode=True, patch_size=1, patch_distance=6, )
+    # wien = wiener(original, 5, 3)
 
     original = array(gaussian)
-    ############################################################################################################################
+    ####################################################################################################################
     # # PIXSTEM
 
     # s = s.rotate_diffraction(0,show_progressbar=False)
@@ -139,7 +138,7 @@ def multiprocessing_func(values):
     # peak_array_com = s.peak_position_refinement_com(peak_array, lazy_result=False, show_progressbar=False)
     # s_rem = s.subtract_diffraction_background(lazy_result=False, show_progressbar=False)
     # peak_array_rem_com = s_rem.peak_position_refinement_com(peak_array_com, lazy_result=False, show_progressbar=False)
-    ############################################################################################################################
+    ####################################################################################################################
     # MY METHOD
 
     # defines template and templates matches
@@ -174,7 +173,7 @@ def multiprocessing_func(values):
                 pnt = temp[j]
         l.append(pnt)
     peak_array_rem_com = [[], l]
-    ############################################################################################################################
+    ####################################################################################################################
     center = find_center(original, peak_array_rem_com)
     # finds the specific spot and adding that distance to the array
     pos_distance = 0
@@ -248,8 +247,8 @@ def start_analysis(values=None):
         img = ImageTk.PhotoImage(Image.open("temp.png"))
         c2.create_image(0, 0, anchor='nw', image=img)
         c2.bind('<Button-1>', mouse_coords)
-        l['text'] = l[
-                        'text'] + "Please click on the method of analysis and then the point you would like to analyze from the diffraction pattern above.\n"
+        l['text'] = l['text'] + "Please click on the method of analysis and then the point you would like to " \
+                                "analyze from the diffraction pattern above.\n "
         r.mainloop()
         if path.exists("temp.png"):
             remove("temp.png")
@@ -343,12 +342,12 @@ def bar_chart(INTERVAL=0.1):
     elif distances is None:
         label1['text'] = label1['text'] + "Please analyze the file before creating a bar chart.\n"
     else:
-        label1['text'] = label1[
-                             'text'] + "Creating bar chart. This might take several minutes depending on the size of data.\n"
+        label1['text'] = label1['text'] + "Creating bar chart. This might take several minutes depending on the size " \
+                                          "of data.\n "
         root.update()
         dist = single_values.flatten()
 
-        fig, a = plt.subplots(figsize=(6,5.5))
+        fig, a = plt.subplots(figsize=(6, 5.5))
         plt.xlabel('Distance from center peek', fontsize=10)
         plt.ylabel('Counts', fontsize=10)
         plt.title('Distance Counts', fontsize=10)
@@ -370,8 +369,8 @@ def bar_chart(INTERVAL=0.1):
         chart_type.draw()
         chart_type.get_tk_widget().place(relx=0.0, rely=0.2, relwidth=0.5)
         m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, width=1000, justify='center')
-        m[
-            'text'] = "Enter the minimum value and the maximum value (exclusive) seperated by a space. Press Enter to create the heatmap with these specifications"
+        m['text'] = "Enter the minimum value and the maximum value (exclusive) separated by a space. Press Enter to " \
+                    "create the heatmap with these specifications "
         m.place(relx=0.25, rely=0.05)
         e = tk.Entry(bar_chart_window, font=('Calibri', 15))
         e.place(relx=0.44, rely=0.1)
@@ -437,10 +436,9 @@ def heat_map():
         bar_chart_window = tk.Toplevel(root)
         bar_chart_window.geometry('1280x720')
         m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, width=600, justify='left')
-        m[
-            'text'] = "A new window should open displaying the heatmap created, if you would like to view specific diffraction patturns, " \
-                      "enter the starting x and the y value and the ending x and y value seperated by a space. " \
-                      "Press Enter to display these diffraction patterns"
+        m['text'] = "A new window should open displaying the heatmap created, if you would like to view specific " \
+                    "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
+                    "separated by a space. Press Enter to display these diffraction patterns."
         m.place(relx=0.25, rely=0.05)
         e = tk.Entry(bar_chart_window, font=('Calibri', 15))
         e.place(relx=0.44, rely=0.3)
@@ -481,7 +479,8 @@ if __name__ == "__main__":
     button.place(relx=0.42, rely=0.15, relwidth=0.16, relheight=0.05)
 
     button1 = tk.Button(frame, text='Start Analysis', bg='#620000', font=('Calibri', 30), highlightthickness=0, bd=0,
-                        activebackground='#800000', activeforeground='#ffffff', command=lambda: set_curr_func("analysis"),
+                        activebackground='#800000', activeforeground='#ffffff',
+                        command=lambda: set_curr_func("analysis"),
                         pady=0.02, fg='#ffffff')
     button1.place(relx=0.39, rely=0.22, relwidth=0.22, relheight=0.05)
 
