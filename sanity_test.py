@@ -32,7 +32,7 @@ def load_file():
 
 
 # applies filter to first image in .blo file
-# calls find_centers() function
+# calls find_peaks() function
 # calls display() function
 def filter_and_analyze():
     if file is not None:
@@ -53,7 +53,7 @@ def filter_and_analyze():
 
         print(original)
         print(filtered)
-        f = find_centers(filtered)
+        f = find_peaks(filtered)
         display(filtered, f)
 
 
@@ -63,7 +63,7 @@ def distance(x1, y1, x2, y2):
 
 
 # finds the centers of diffraction spots in filtered image
-def find_centers(filtered):
+def find_peaks(filtered):
     template = filtered[265:320, 265:320]  # CHANGE BASED ON IMAGE SIZE
     print(template)
     result = match_template(filtered, template, pad_input=True)
@@ -100,21 +100,20 @@ def find_centers(filtered):
 # displays filtered image and identified diffraction spots in pop-up window
 def display(im, p_list):
     img = Image.fromarray(im)
-    img = img.resize((400, 400))
 
     r = tk.Toplevel(root)
 
     c = tk.Canvas(r, height=720, width=1080)
     c.pack()
-    f = tk.Frame(r, bg='#333333')
+    f = tk.Frame(r, bg='#FFFFFF')
     f.place(relwidth=1, relheight=1)
-    c2 = tk.Canvas(r, width=400, height=400)
-    c2.place(relx=0.3)
+    c2 = tk.Canvas(r, width=img.size[1], height=img.size[0])
+    c2.place(relx=0.5, rely=0.5, anchor="center")
     image = ImageTk.PhotoImage(img)
     c2.create_image(0, 0, anchor='nw', image=image)
 
     for p in p_list:
-        c2.create_oval(p[0]-2, p[1]-2, p[0]+2, p[1]+2, fill='#05FF00', outline='#05FF00')
+        c2.create_oval(p[1]-2, p[0]-2, p[1]+2, p[0]+2, fill='#05FF00', outline='#05FF00')
 
     r.mainloop()
 
