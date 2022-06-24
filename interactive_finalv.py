@@ -1,19 +1,22 @@
-from os import remove, environ, path
+# Generates strain maps in the material based on the diffraction data acquired using
+# Precession Electron Diffraction (PED)
+# May also be used for 4D-STEM data
+# The first part of the algorithm filters the PED data
+# The second part calculates the distance in diffraction patterns
+# The third part generates strain maps
+
+from os import remove, path
 import plotly.express as px
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from csv import writer
 from ctypes import c_double
 from hyperspy.api import load
-from math import ceil
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib import cm
 from matplotlib import colors
-from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
-from matplotlib.ticker import LinearLocator
 from multiprocessing import Array
-from numpy import sqrt, array, ndenumerate, arange, min, max, percentile, \
-    linspace, nonzero, zeros, around, unravel_index, argmax, mean
+from numpy import sqrt, array, ndenumerate, arange, percentile, linspace, zeros, mean
 from numpy.ctypeslib import as_array
 from pandas import DataFrame
 from PIL import Image, ImageTk
@@ -21,18 +24,20 @@ from pixstem.api import PixelatedSTEM
 from seaborn import heatmap
 import tkinter as tk
 from tkinter import filedialog
-from tkinter import font
-from scipy.signal import wiener
 from skimage.feature import match_template
 from scipy.ndimage import gaussian_filter
-from skimage.restoration import denoise_nl_means, estimate_sigma
+from skimage.restoration import estimate_sigma, denoise_nl_means
+from scipy.signal import wiener
 
-file = None
-distances = None
-single_values = None
-curr_func = None
+# global variables
+file = None  # input file
+distances = None  # distances for all peak points in image
+single_values = None  # input values
+curr_func = None  # current function
 
 
+# changes curr_func to user selected function (used in buttons in UI)
+# displays instructions in UI
 def set_curr_func(func_name):
     global curr_func, file, single_values
     curr_func = str(func_name)
@@ -59,6 +64,7 @@ def set_curr_func(func_name):
                                               "as integers, separated by spaces. Press Enter when ready.\n "
 
 
+# executes current function upon keyboard event (used in set_curr_func)
 def get_entry(event):
     global curr_func
     if curr_func == "load_file":
@@ -72,7 +78,9 @@ def get_entry(event):
         to_csv(entry.get())
 
 
-def load_file(FILENAME=None):
+# opens file explorer for user to select file
+# assigns selected file to global file variable
+def load_file(filename=None):
     global file
     label1['text'] = label1['text'] + "Loading file...\n"
     input_file = filedialog.askopenfilename()
@@ -86,31 +94,29 @@ def load_file(FILENAME=None):
     # entry.unbind("<Return>")
 
 
+# calculates distance between two points
 def distance(x1, y1, x2, y2):
     return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2))
 
 
-def intensity(values):
-    s = PixelatedSTEM(file.inav[values[0], values[1]])
-    imarray = array(s)
-    single_values[values[1]][values[0]] = imarray[values[3]][values[2]]
-
-
+# finds coordinate of center spot in image
 def find_center(im, peak):
     center = (352, 382)
     minimum = 144
-    for (x, y) in ndenumerate(peak):
-        for (a, b) in y:
+    for (i, j) in ndenumerate(peak):
+        for (x, y) in j:
             length = len(im)
-            d = distance(350, 380, b, a)
+            dist = distance(350, 380, y, x)
             # d = distance(length/2, length/2, b, a)
-            if 340 < int(a) < 390 and 340 < int(b) < 370 and d < minimum:
-                minimum = d
-                center = (b, a)
-
+            if 340 < int(x) < 390 and 340 < int(y) < 370 and dist < minimum:
+                minimum = dist
+                center = (y, x)
     return center
 
 
+# applies filter to image
+# performs template matching and finds peak points in diffraction spots
+# calculates distances for all peak points in image
 def multiprocessing_func(values):
     global single_values, distances
     s = PixelatedSTEM(file.inav[values[0], values[1]])
@@ -128,7 +134,7 @@ def multiprocessing_func(values):
     # nlm = denoise_nl_means(original, h=1.15*sigma_est, fast_mode=True, patch_size=1, patch_distance=6, )
     # wien = wiener(original, 5, 3)
 
-    original = array(gaussian)
+    filtered = array(gaussian)
     ####################################################################################################################
     # # PIXSTEM
 
@@ -144,13 +150,13 @@ def multiprocessing_func(values):
     # defines template and templates matches
     # spot for 580 - [265:320, 265:320]
     # spot for 144 - [65:80, 65:80]
-    template = original[265:320, 265:320]
-    result = match_template(original, template, pad_input=True)
+    template = filtered[265:320, 265:320]
+    result = match_template(filtered, template, pad_input=True)
     # only takes points greater than the threshold r-value
     tempList = []
     for i in range(len(result)):
         for j in range(len(result[i])):
-            if result[i][j] > 0.87:  # change correlation value
+            if result[i][j] > 0.8:  # correlation value can be changed
                 tempList.append((i, j))
     # removes duplicate spots that are too close to each other
     i = 0
@@ -160,7 +166,8 @@ def multiprocessing_func(values):
         temp = []
         point = tempList[i]
         while j < len(tempList):
-            if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 15:  # change minimum center distance
+            if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 15:
+                # minimum center distance can be changed
                 temp.append(tempList[j])
                 tempList.pop(j)
             else:
@@ -174,15 +181,18 @@ def multiprocessing_func(values):
         l.append(pnt)
     peak_array_rem_com = [[], l]
     ####################################################################################################################
-    center = find_center(original, peak_array_rem_com)
+
+    center = find_center(filtered, peak_array_rem_com)
     # finds the specific spot and adding that distance to the array
     pos_distance = 0
     closest_point = center
     idx = 0
-    length = len(original)
-    for (x, y) in ndenumerate(peak_array_rem_com):
+    length = len(filtered)
+
+    # calculates distances for all peak points in image
+    for x, y in ndenumerate(peak_array_rem_com):
         minimum = 999999
-        for (a, b) in y:
+        for a, b in y:
             if 2 < b < length - 2 and 2 < a < length - 2:
                 di = distance(center[0], center[1], b, a)
                 distances[values[1]][values[0]][idx] = round(di, 3)
@@ -196,24 +206,20 @@ def multiprocessing_func(values):
     print(values[0], values[1], closest_point, pos_distance, center)
 
 
+# creates pop-up UI where user can select a point on the image
+# calls analysis function with selected point
 def start_analysis(values=None):
     global file, curr_func
     pointxy = None
-    method_of_analysis = ""
     if pointxy is None:
-        def assign_method(method):
-            global method_of_analysis
-            method_of_analysis = method
-
         def mouse_coords(event):
-            global method_of_analysis
             s = PixelatedSTEM(file.inav[25, 25])
             length = len(array(s))
             pointxy = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
             l['text'] = l['text'] + str(pointxy[0]) + " " + str(pointxy[1]) + "\n"
             l['text'] = l['text'] + "Starting analysis...\n"
             r.update()
-            analysis(pointxy, values, method_of_analysis)
+            analysis(pointxy, values)
             remove("temp.png")
             c2.unbind('<Button-1>')
             r.destroy()
@@ -234,31 +240,25 @@ def start_analysis(values=None):
         l = tk.Message(f, bg='#999999', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0, bd=0,
                        width=1000)
         l.place(relx=0.05, rely=0.7, relwidth=0.9, relheight=0.2)
-        b1 = tk.Button(f, text='Intensity Mapping', bg='#620000', font=('Calibri', 15), highlightthickness=0, bd=0,
-                       activebackground='#800000', activeforeground='#ffffff',
-                       command=lambda: assign_method("intensity"), pady=0.02, fg='#ffffff')
-        b1.place(relx=0.2, rely=0.6, relwidth=0.2, relheight=0.05)
-        b2 = tk.Button(f, text='Strain Mapping', bg='#620000', font=('Calibri', 15), highlightthickness=0, bd=0,
-                       activebackground='#800000', activeforeground='#ffffff', command=lambda: assign_method("strain"),
-                       pady=0.02, fg='#ffffff')
-        b2.place(relx=0.6, rely=0.6, relwidth=0.2, relheight=0.05)
         c2 = tk.Canvas(r, width=400, height=400)
         c2.place(relx=0.3)
         img = ImageTk.PhotoImage(Image.open("temp.png"))
         c2.create_image(0, 0, anchor='nw', image=img)
         c2.bind('<Button-1>', mouse_coords)
-        l['text'] = l['text'] + "Please click on the method of analysis and then the point you would like to " \
+        l['text'] = l['text'] + "Strain mapping: \n Please click on the point you would like to " \
                                 "analyze from the diffraction pattern above.\n "
         r.mainloop()
         if path.exists("temp.png"):
             remove("temp.png")
 
 
-def analysis(pointxy, values, method_of_analysis=""):
+# calls multiprocessing function to calculate all distances
+# saves distances to new file
+def analysis(pointxy, values):
     global file, single_values, distances
     t = values.split(" ")
-    COL = int(t[1])
     ROW = int(t[0])
+    COL = int(t[1])
 
     list = []
     for r in range(ROW):
@@ -273,11 +273,9 @@ def analysis(pointxy, values, method_of_analysis=""):
     distances = as_array(shared_array.get_obj())
     distances = distances.reshape(COL, ROW, 50)
 
-    with ProcessPoolExecutor() as executor:
-        if method_of_analysis == "strain":
-            executor.map(multiprocessing_func, list)
-        else:
-            executor.map(intensity, list)
+    with ThreadPoolExecutor() as executor:
+        executor.map(multiprocessing_func, list)
+
     entry.delete(0, tk.END)
     f = open("Distances", "w")
     w = writer(f)
@@ -289,6 +287,7 @@ def analysis(pointxy, values, method_of_analysis=""):
     # entry.unbind("<Return>")
 
 
+# creates and saves data to a csv file
 def to_csv(filename=None):
     global single_values
     f = open(filename, "w")
@@ -301,6 +300,7 @@ def to_csv(filename=None):
     # entry.unbind("<Return>")
 
 
+# creates heat map (used by bar_chart function)
 def heat_map_maker(minimum, maximum, parity=0):
     global single_values, distances
 
@@ -335,6 +335,7 @@ def heat_map_maker(minimum, maximum, parity=0):
         return chart.get_figure()
 
 
+# creates bar chart pop-up UI
 def bar_chart(INTERVAL=0.1):
     global distances
     if file is None:
@@ -354,6 +355,7 @@ def bar_chart(INTERVAL=0.1):
         # plt.bar(y_pos, counts, align='center', alpha=0.95) # creates the bar plot
         plt.hist(dist, bins=500)
 
+        # calls heat_map_maker function upon user input
         def scope_heat_map(event):
             values = e.get().split(" ")
             minimum = float(values[0])
@@ -377,6 +379,7 @@ def bar_chart(INTERVAL=0.1):
         e.bind("<Return>", scope_heat_map)
 
 
+# calculates and returns thresholds for lower and upper outliers in a given array
 def outlier(data):
     data = data.flatten()
     q1 = percentile(data, 25)
@@ -387,6 +390,8 @@ def outlier(data):
     return minimum, maximum
 
 
+# opens a heat map as a tab in browser
+# creates pop-up UI that can bring up user-requested diffraction patterns
 def heat_map():
     import hyperspy.api as hs
     global single_values
@@ -402,6 +407,7 @@ def heat_map():
         fig = px.imshow(df, color_continuous_scale=["blue", "green", "red"])
         fig.show()
 
+        # creates diffraction pattern pop-up windows
         def image_gallery(event):
             global file
             values = e.get().split(" ")
@@ -409,8 +415,6 @@ def heat_map():
             y0 = int(values[1])
             x1 = int(values[2])
             y1 = int(values[3])
-            x = 0
-            y = 0
             indexx = x1
 
             for x in range(x1 - x0 + 1):
@@ -433,6 +437,7 @@ def heat_map():
                 x += 1
             plt.show()
 
+        # creates pop-up UI that calls image_gallery upon user input
         bar_chart_window = tk.Toplevel(root)
         bar_chart_window.geometry('1280x720')
         m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, width=600, justify='left')
@@ -447,6 +452,7 @@ def heat_map():
         bar_chart_window.mainloop()
 
 
+# main menu UI
 if __name__ == "__main__":
 
     HEIGHT = 1080
