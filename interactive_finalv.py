@@ -273,6 +273,7 @@ def analysis(pointxy, values):
     distances = as_array(shared_array.get_obj())
     distances = distances.reshape(COL, ROW, 50)
 
+    # performs strain mapping with multiprocessing
     with ThreadPoolExecutor() as executor:
         executor.map(multiprocessing_func, list)
 
