@@ -159,12 +159,11 @@ def multiprocessing_func(values):
             if result[i][j] > 0.87:  # correlation value
                 tempList.append((i, j))
     # removes duplicate spots that are too close to each other
-    i = 0
-    l = []
-    while i < len(tempList):
+    peaks_list = []
+    while len(tempList) > 0:
         j = 0
         temp = []
-        point = tempList[i]
+        point = tempList[0]
         while j < len(tempList):
             if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 15:
                 # minimum center distance can be changed
@@ -178,8 +177,8 @@ def multiprocessing_func(values):
             if result[pnt[0]][pnt[1]] < result[temp[j][0]][temp[j][1]]:
                 max = result[temp[j][0]][temp[j][1]]
                 pnt = temp[j]
-        l.append(pnt)
-    peak_array_rem_com = [[], l]
+        peaks_list.append(pnt)
+    peak_array_rem_com = [[], peaks_list]
     ####################################################################################################################
 
     center = find_center(filtered, peak_array_rem_com)
@@ -216,8 +215,8 @@ def start_analysis(values=None):
             s = PixelatedSTEM(file.inav[25, 25])
             length = len(array(s))
             pointxy = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
-            l['text'] = l['text'] + str(pointxy[0]) + " " + str(pointxy[1]) + "\n"
-            l['text'] = l['text'] + "Starting analysis...\n"
+            analysis_log['text'] = analysis_log['text'] + str(pointxy[0]) + " " + str(pointxy[1]) + "\n"
+            analysis_log['text'] = analysis_log['text'] + "Starting analysis...\n"
             r.update()
             analysis(pointxy, values)
             remove("temp.png")
@@ -237,15 +236,15 @@ def start_analysis(values=None):
         c.pack()
         f = tk.Frame(r, bg='#333333')
         f.place(relwidth=1, relheight=1)
-        l = tk.Message(f, bg='#999999', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0, bd=0,
+        analysis_log = tk.Message(f, bg='#999999', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0, bd=0,
                        width=1000)
-        l.place(relx=0.05, rely=0.7, relwidth=0.9, relheight=0.2)
+        analysis_log.place(relx=0.05, rely=0.7, relwidth=0.9, relheight=0.2)
         c2 = tk.Canvas(r, width=400, height=400)
         c2.place(relx=0.3)
         img = ImageTk.PhotoImage(Image.open("temp.png"))
         c2.create_image(0, 0, anchor='nw', image=img)
         c2.bind('<Button-1>', mouse_coords)
-        l['text'] = l['text'] + "Strain mapping: \n Please click on the point you would like to " \
+        analysis_log['text'] = analysis_log['text'] + "Strain mapping: \n Please click on the point you would like to " \
                                 "analyze from the diffraction pattern above.\n "
         r.mainloop()
         if path.exists("temp.png"):
