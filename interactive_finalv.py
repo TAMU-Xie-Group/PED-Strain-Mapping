@@ -156,7 +156,7 @@ def multiprocessing_func(values):
     tempList = []
     for i in range(len(result)):
         for j in range(len(result[i])):
-            if result[i][j] > 0.8:  # correlation value can be changed
+            if result[i][j] > 0.87:  # correlation value
                 tempList.append((i, j))
     # removes duplicate spots that are too close to each other
     i = 0
@@ -190,17 +190,17 @@ def multiprocessing_func(values):
     length = len(filtered)
 
     # calculates distances for all peak points in image
-    for x, y in ndenumerate(peak_array_rem_com):
+    for (i, j) in ndenumerate(peak_array_rem_com):
         minimum = 999999
-        for a, b in y:
-            if 2 < b < length - 2 and 2 < a < length - 2:
-                di = distance(center[0], center[1], b, a)
+        for (x, y) in j:
+            if 2 < y < length - 2 and 2 < x < length - 2:
+                di = distance(center[0], center[1], y, x)
                 distances[values[1]][values[0]][idx] = round(di, 3)
                 idx += 1
-            dis = distance(values[2], values[3], b, a)
+            dis = distance(values[2], values[3], y, x)
             if dis < minimum and dis < length / 10:
                 minimum = dis
-                closest_point = (b, a)
+                closest_point = (y, x)
     pos_distance = distance(closest_point[0], closest_point[1], center[0], center[1])
     single_values[values[1]][values[0]] = round(pos_distance, 4)
     print(values[0], values[1], closest_point, pos_distance, center)
@@ -273,9 +273,9 @@ def analysis(pointxy, values):
     distances = as_array(shared_array.get_obj())
     distances = distances.reshape(COL, ROW, 50)
 
-    # performs strain mapping with multiprocessing
-    with ThreadPoolExecutor() as executor:
-        executor.map(multiprocessing_func, list)
+    # calling multiprocessing function with a single thread (to be updated)
+    for i in range(len(list)):
+        multiprocessing_func(list[i])
 
     entry.delete(0, tk.END)
     f = open("Distances", "w")
