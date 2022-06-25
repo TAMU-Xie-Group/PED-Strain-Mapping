@@ -7,9 +7,9 @@
 import tkinter as tk
 from tkinter import filedialog
 from hyperspy.api import load
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageEnhance
 from pixstem.api import PixelatedSTEM
-from numpy import array, mean, sqrt
+from numpy import array, mean, sqrt, sum
 from skimage.feature import match_template
 from scipy.ndimage import gaussian_filter
 from skimage.restoration import estimate_sigma, denoise_nl_means
@@ -19,16 +19,16 @@ from scipy.signal import wiener
 # prompts file dialog for user to select file
 def load_file():
     global file
-    label1['text'] = label1['text'] + "Loading file...\n"
+    label3['text'] = "Loading file...\n"
     input_file = filedialog.askopenfilename()
     root.update()
     try:
         file = load(input_file)
-        label1['text'] = label1['text'] + "File loaded.\n"
+        label3['text'] = label3['text'] + "File loaded.\n"
     except ValueError:
-        label1['text'] = label1['text'] + "Please select a file and try again.\n"
+        label3['text'] = label3['text'] + "Please select a file and try again.\n"
     except OSError:
-        label1['text'] = label1['text'] + "Error loading. Please check the file path and try again.\n"
+        label3['text'] = label3['text'] + "Error loading. Please check the file path and try again.\n"
 
 
 # applies filter to first image in .blo file
@@ -36,7 +36,7 @@ def load_file():
 # calls display() function
 def filter_and_analyze():
     if file is not None:
-        s = PixelatedSTEM(file.inav[0, 0])
+        s = PixelatedSTEM(file.inav[20, 20])
         original = array(s)
 
         # # FILTERS
@@ -51,10 +51,19 @@ def filter_and_analyze():
 
         filtered = array(gaussian)
 
-        print(original)
-        print(filtered)
-        f = find_peaks(filtered)
-        display(filtered, f)
+        im = Image.fromarray(filtered)
+        enhancer = ImageEnhance.Sharpness(im)
+        factor = 4
+        input_img = array(enhancer.enhance(factor))
+
+        print("Original: \n", original, "\n")
+        print("Filtered: \n", filtered, "\n")
+        print("Sharpened: \n", input_img, "\n")
+        f = find_peaks(input_img)
+        display(input_img, f, original)
+
+    else:
+        label3['text'] = "Please select a file and try again.\n"
 
 
 # calculates and returns distance between two points
@@ -63,10 +72,9 @@ def distance(x1, y1, x2, y2):
 
 
 # finds the centers of diffraction spots in filtered image
-def find_peaks(filtered):
-    template = filtered[265:320, 265:320]  # CHANGE BASED ON IMAGE SIZE
-    print(template)
-    result = match_template(filtered, template, pad_input=True)
+def find_peaks(input_img):
+    template = input_img[265:320, 265:320]  # CHANGE BASED ON IMAGE SIZE
+    result = match_template(input_img, template, pad_input=True)
     # only takes points greater than the threshold r-value
     tempList = []
     for i in range(len(result)):
@@ -80,8 +88,7 @@ def find_peaks(filtered):
         temp = []
         point = tempList[0]
         while j < len(tempList):
-            if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 15:
-                # minimum center distance can be changed
+            if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 25:  # min center dist can be changed
                 temp.append(tempList[j])
                 tempList.pop(j)
             else:
@@ -93,27 +100,37 @@ def find_peaks(filtered):
                 max = result[temp[j][0]][temp[j][1]]
                 pnt = temp[j]
         peaks_list.append(pnt)
-    print(peaks_list)
+    print("Peaks: \n", peaks_list)
     return peaks_list
 
 
 # displays filtered image and identified diffraction spots in pop-up window
-def display(im, p_list):
+def display(im, p_list, original):
     img = Image.fromarray(im)
+    img_original = Image.fromarray(original)
 
     r = tk.Toplevel(root)
 
-    c = tk.Canvas(r, height=720, width=1080)
+    c = tk.Canvas(r, width=img.size[1]*2.2, height=img.size[0]*1.1)
     c.pack()
     f = tk.Frame(r, bg='#FFFFFF')
     f.place(relwidth=1, relheight=1)
-    c2 = tk.Canvas(r, width=img.size[1], height=img.size[0])
-    c2.place(relx=0.5, rely=0.5, anchor="center")
-    image = ImageTk.PhotoImage(img)
-    c2.create_image(0, 0, anchor='nw', image=image)
 
+    # display filtered and analyzed image
+    c2 = tk.Canvas(r, width=img.size[1], height=img.size[0])
+    c2.place(relx=0.75, rely=0.5, anchor="center")
+    image1 = ImageTk.PhotoImage(img)
+    c2.create_image(0, 0, anchor='nw', image=image1)
+
+    # draw centers in diffraction spots
     for p in p_list:
         c2.create_oval(p[1]-2, p[0]-2, p[1]+2, p[0]+2, fill='#05FF00', outline='#05FF00')
+
+    # display original image
+    c3 = tk.Canvas(r, width=img.size[1], height=img.size[0])
+    c3.place(relx=0.25, rely=0.5, anchor="center")
+    image2 = ImageTk.PhotoImage(img_original)
+    c3.create_image(0, 0, anchor='nw', image=image2)
 
     r.mainloop()
 
@@ -132,25 +149,32 @@ if __name__ == "__main__":
     frame = tk.Frame(root, bg='#FFFFFF')
     frame.place(relwidth=1, relheight=1)
 
-    # Menu Label
-    label = tk.Label(frame, text='Sanity Test', bg='#FFFFFF', font=('Calibri', 40), fg='#373737')
-    label.place(relx=0.30, rely=0.05, relwidth=0.4, relheight=0.1)
+    # TAMU MSEN logo
+    image = Image.open('msen.png')
+    image = image.resize((200, 40))
+    img = ImageTk.PhotoImage(image)
+    label1 = tk.Label(frame, image=img, bg='#FFFFFF')
+    label1.place(relx=0.05, rely=0.05, anchor='w')
+
+    # Title Label
+    label2 = tk.Label(frame, text='Sanity Test', bg='#FFFFFF', font=('Calibri', 40), fg='#373737')
+    label2.place(relx=0.30, rely=0.12, relwidth=0.4, relheight=0.1)
 
     # Text Output box
-    label1 = tk.Message(frame, bg='#F0F0F0', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0,
-                        bd=0, width=1500, fg='#373737')
-    label1.place(relx=0.2, rely=0.6, relwidth=0.6, relheight=0.30)
+    label3 = tk.Message(frame, bg='#F3F3F3', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0,
+                        bd=0, width=1500, fg='#373737', borderwidth=2, relief="groove")
+    label3.place(relx=0.2, rely=0.56, relwidth=0.6, relheight=0.35)
 
     # Buttons
-    button1 = tk.Button(frame, text='Load File', bg='#F0F0F0', font=('Calibri', 30), highlightthickness=0, bd=0,
+    button1 = tk.Button(frame, text='Load File', bg='#F3F3F3', font=('Calibri', 30), highlightthickness=0, bd=0,
                         activebackground='#D4D4D4', activeforeground='#252525', command=lambda: load_file(),
-                        pady=0.02, fg='#373737')
-    button1.place(relx=0.3, rely=0.25, relwidth=0.4, relheight=0.1)
+                        pady=0.02, fg='#373737', borderwidth='2', relief="groove")
+    button1.place(relx=0.3, rely=0.26, relwidth=0.4, relheight=0.1)
 
-    button2 = tk.Button(frame, text='Filter and Analyze', bg='#F0F0F0', font=('Calibri', 30), highlightthickness=0,
+    button2 = tk.Button(frame, text='Filter and Analyze', bg='#F3F3F3', font=('Calibri', 30), highlightthickness=0,
                         bd=0, activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: filter_and_analyze(),
-                        pady=0.02, fg='#373737')
-    button2.place(relx=0.3, rely=0.4, relwidth=0.4, relheight=0.1)
+                        pady=0.02, fg='#373737', borderwidth='2', relief="groove")
+    button2.place(relx=0.3, rely=0.39, relwidth=0.4, relheight=0.1)
 
     root.mainloop()
