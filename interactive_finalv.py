@@ -7,7 +7,6 @@
 
 from os import remove, path
 import plotly.express as px
-from concurrent.futures import ThreadPoolExecutor
 from csv import writer
 from ctypes import c_double
 from hyperspy.api import load
@@ -42,26 +41,22 @@ def set_curr_func(func_name):
     global curr_func, file, single_values
     curr_func = str(func_name)
     entry.delete(0, tk.END)
-    if curr_func == "load_file":
-        entry.bind("<Return>", get_entry)
-        label1['text'] = label1['text'] + "Please enter the path of the input file in the text box provided then " \
-                                          "press Enter.\n "
-    elif curr_func == "to_csv":
+    if curr_func == "to_csv":
         if file is None:
-            label1['text'] = label1['text'] + "Please load a file before saving data.\n"
+            label1['text'] = "Please load a file before saving data.\n"
         elif single_values is None:
-            label1['text'] = label1['text'] + "Please analyze the file before saving data.\n"
+            label1['text'] = "Please analyze the file before saving data.\n"
         else:
             entry.bind("<Return>", get_entry)
-            label1['text'] = label1['text'] + "Please enter the path of the file you want to save to in the text box " \
-                                              "provided then press Enter.\n "
+            label1['text'] = "Please enter the path of the file you want to save to in the\ntext box " \
+                              "provided then press Enter.\n "
     elif curr_func == "analysis":
         if file is None:
-            label1['text'] = label1['text'] + "Please load a file before starting analysis.\n"
+            label1['text'] = "Please load a file before starting analysis.\n"
         else:
             entry.bind("<Return>", get_entry)
-            label1['text'] = label1['text'] + "Please enter the number of rows and columns you would like to analyze, " \
-                                              "as integers, separated by spaces. Press Enter when ready.\n "
+            label1['text'] = "Please enter the number of rows and columns you would like to " \
+                              "analyze,\nas integers, separated by spaces. Press Enter when ready.\n"
 
 
 # executes current function upon keyboard event (used in set_curr_func)
@@ -82,7 +77,7 @@ def get_entry(event):
 # assigns selected file to global file variable
 def load_file(filename=None):
     global file
-    label1['text'] = label1['text'] + "Loading file...\n"
+    label1['text'] = "Loading file...\n"
     input_file = filedialog.askopenfilename()
     root.update()
     try:
@@ -165,8 +160,7 @@ def multiprocessing_func(values):
         temp = []
         point = tempList[0]
         while j < len(tempList):
-            if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 15:
-                # minimum center distance can be changed
+            if distance(point[0], point[1], tempList[j][0], tempList[j][1]) < 25:  # min center dist can be changed
                 temp.append(tempList[j])
                 tempList.pop(j)
             else:
@@ -232,20 +226,20 @@ def start_analysis(values=None):
 
         r = tk.Toplevel(root)
 
-        c = tk.Canvas(r, height=720, width=1080)
+        c = tk.Canvas(r, height=600, width=840)
         c.pack()
-        f = tk.Frame(r, bg='#333333')
+        f = tk.Frame(r, bg='#FFFFFF')
         f.place(relwidth=1, relheight=1)
-        analysis_log = tk.Message(f, bg='#999999', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0, bd=0,
-                       width=1000)
+        analysis_log = tk.Message(f, bg='#FFFFFF', font=('Calibri', 15), anchor='nw', justify='left',
+                                  highlightthickness=0, bd=0, width=756)
         analysis_log.place(relx=0.05, rely=0.7, relwidth=0.9, relheight=0.2)
         c2 = tk.Canvas(r, width=400, height=400)
-        c2.place(relx=0.3)
+        c2.place(relx=0.5, anchor='n')
         img = ImageTk.PhotoImage(Image.open("temp.png"))
         c2.create_image(0, 0, anchor='nw', image=img)
         c2.bind('<Button-1>', mouse_coords)
-        analysis_log['text'] = analysis_log['text'] + "Strain mapping: \n Please click on the point you would like to " \
-                                "analyze from the diffraction pattern above.\n "
+        analysis_log['text'] = analysis_log['text'] + "Strain mapping: \nPlease click on the point you would like to "\
+                                                      "analyze from the diffraction pattern above.\n"
         r.mainloop()
         if path.exists("temp.png"):
             remove("temp.png")
@@ -339,12 +333,12 @@ def heat_map_maker(minimum, maximum, parity=0):
 def bar_chart(INTERVAL=0.1):
     global distances
     if file is None:
-        label1['text'] = label1['text'] + "Please load a file before creating a bar chart.\n"
+        label1['text'] = "Please load a file before creating a bar chart.\n"
     elif distances is None:
-        label1['text'] = label1['text'] + "Please analyze the file before creating a bar chart.\n"
+        label1['text'] = "Please analyze the file before creating a bar chart.\n"
     else:
-        label1['text'] = label1['text'] + "Creating bar chart. This might take several minutes depending on the size " \
-                                          "of data.\n "
+        label1['text'] = "Creating bar chart.\n(This might take several minutes depending on the size " \
+                         "of data.)\n"
         root.update()
         dist = single_values.flatten()
 
@@ -366,16 +360,16 @@ def bar_chart(INTERVAL=0.1):
             chart_type.get_tk_widget().place(relx=0.51, rely=0.2)
 
         bar_chart_window = tk.Toplevel(root)
-        bar_chart_window.geometry('1920x1080')
+        bar_chart_window.geometry('1200x760')
         chart_type = FigureCanvasTkAgg(plt.gcf(), bar_chart_window)
         chart_type.draw()
         chart_type.get_tk_widget().place(relx=0.0, rely=0.2, relwidth=0.5)
         m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, width=1000, justify='center')
-        m['text'] = "Enter the minimum value and the maximum value (exclusive) separated by a space. Press Enter to " \
-                    "create the heatmap with these specifications "
+        m['text'] = "Enter the minimum value and the maximum value (exclusive) separated by a space.\nPress Enter to " \
+                    "create the heatmap with these specifications."
         m.place(relx=0.25, rely=0.05)
         e = tk.Entry(bar_chart_window, font=('Calibri', 15))
-        e.place(relx=0.44, rely=0.1)
+        e.place(relx=0.44, rely=0.14)
         e.bind("<Return>", scope_heat_map)
 
 
@@ -396,9 +390,9 @@ def heat_map():
     import hyperspy.api as hs
     global single_values
     if file is None:
-        label1['text'] = label1['text'] + "Please load a file before creating a heat map.\n"
+        label1['text'] = "Please load a file before creating a heat map.\n"
     elif distances is None:
-        label1['text'] = label1['text'] + "Please analyze the file before creating a heat map.\n"
+        label1['text'] = "Please analyze the file before creating a heat map.\n"
     else:
         data = single_values.copy()
         df = DataFrame(data, columns=arange(len(data[0])), index=arange(len(data)))
@@ -439,14 +433,15 @@ def heat_map():
 
         # creates pop-up UI that calls image_gallery upon user input
         bar_chart_window = tk.Toplevel(root)
-        bar_chart_window.geometry('1280x720')
-        m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, width=600, justify='left')
-        m['text'] = "A new window should open displaying the heatmap created, if you would like to view specific " \
+        bar_chart_window.geometry('500x400')
+        m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, justify='left')
+        m['text'] = "A new window should open displaying the heatmap created. If you would like to view specific " \
                     "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
                     "separated by a space. Press Enter to display these diffraction patterns."
-        m.place(relx=0.25, rely=0.05)
-        e = tk.Entry(bar_chart_window, font=('Calibri', 15))
-        e.place(relx=0.44, rely=0.3)
+        m.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.5)
+        e = tk.Entry(bar_chart_window, bg='#F4F4F4', font=('Calibri', 15), justify='left', highlightthickness=0,
+                     bd=0, fg='#373737', borderwidth=2, relief="groove")
+        e.place(relx=0.1, rely=0.7, relwidth=0.8, relheight=0.1)
         e.bind("<Return>", image_gallery)
 
         bar_chart_window.mainloop()
@@ -455,55 +450,67 @@ def heat_map():
 # main menu UI
 if __name__ == "__main__":
 
-    HEIGHT = 1080
-    WIDTH = 1920
+    HEIGHT = 700
+    WIDTH = 800
 
     root = tk.Tk()
 
     canvas = tk.Canvas(root, height=HEIGHT, width=WIDTH)
     canvas.pack()
-    frame = tk.Frame(root, bg='#450000')
+    frame = tk.Frame(root, bg='#FFFFFF')
     frame.place(relwidth=1, relheight=1)
 
+    # TAMU MSEN logo
+    image = Image.open('msen.png')
+    image = image.resize((200, 40))
+    img = ImageTk.PhotoImage(image)
+    label1 = tk.Label(frame, image=img, bg='#FFFFFF')
+    label1.place(relx=0.05, rely=0.05, anchor='w')
+
     # Menu Label
-    label = tk.Label(frame, text='Menu', bg='#450000', font=('Times New Roman', 50), fg='#ffffff')
-    label.place(relx=0.40, rely=0.05, relwidth=0.2, relheight=0.05)
+    label = tk.Label(frame, text='Menu', bg='#FFFFFF', font=('Times New Roman', 40), fg='#373737')
+    label.place(relx=0.40, rely=0.1, relwidth=0.2, relheight=0.1)
 
     # Text Output box
-    label1 = tk.Message(frame, bg='#ffffff', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0,
-                        bd=0, width=1500)
-    label1.place(relx=0.1, rely=0.5, relwidth=0.8, relheight=0.35)
+    label1 = tk.Message(frame, bg='#F3F3F3', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0,
+                        bd=0, width=1500, fg='#373737', borderwidth=2, relief="groove")
+    label1.place(relx=0.1, rely=0.54, relwidth=0.8, relheight=0.32)
 
     # Entry box
-    entry = tk.Entry(frame, font=('Calibri', 15))
-    entry.place(relx=0.1, rely=0.9, relwidth=0.8, relheight=0.05)
+    entry = tk.Entry(frame, bg='#F3F3F3', font=('Calibri', 15), justify='left', highlightthickness=0,
+                     bd=0, width=1500, fg='#373737', borderwidth=2, relief="groove")
+    entry.place(relx=0.1, rely=0.88, relwidth=0.8, relheight=0.05)
 
     # Buttons
-    button = tk.Button(frame, text='Load File', bg='#620000', font=('Calibri', 30), highlightthickness=0, bd=0,
-                       activebackground='#800000', activeforeground='#ffffff', command=lambda: load_file(),
-                       pady=0.02, fg='#ffffff')
-    button.place(relx=0.42, rely=0.15, relwidth=0.16, relheight=0.05)
+    button = tk.Button(frame, text='Load File', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
+                       activebackground='#D4D4D4', activeforeground='#252525',
+                       command=lambda: load_file(), pady=0.02, fg='#373737', borderwidth='2',
+                       relief="groove")
+    button.place(relx=0.33, rely=0.22, relwidth=0.34, relheight=0.05)
 
-    button1 = tk.Button(frame, text='Start Analysis', bg='#620000', font=('Calibri', 30), highlightthickness=0, bd=0,
-                        activebackground='#800000', activeforeground='#ffffff',
-                        command=lambda: set_curr_func("analysis"),
-                        pady=0.02, fg='#ffffff')
-    button1.place(relx=0.39, rely=0.22, relwidth=0.22, relheight=0.05)
+    button1 = tk.Button(frame, text='Start Analysis', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
+                        activebackground='#D4D4D4', activeforeground='#252525',
+                        command=lambda: set_curr_func("analysis"), pady=0.02, fg='#373737', borderwidth='2',
+                        relief="groove")
+    button1.place(relx=0.33, rely=0.28, relwidth=0.34, relheight=0.05)
 
-    button2 = tk.Button(frame, text='Create Bar Chart', bg='#620000', font=('Calibri', 30), highlightthickness=0, bd=0,
-                        activebackground='#800000', activeforeground='#ffffff', command=lambda: bar_chart(), pady=0.02,
-                        fg='#ffffff')
-    button2.place(relx=0.375, rely=0.29, relwidth=0.25, relheight=0.05)
+    button2 = tk.Button(frame, text='Create Bar Chart', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
+                        activebackground='#D4D4D4', activeforeground='#252525',
+                        command=lambda: bar_chart(), pady=0.02, fg='#373737', borderwidth='2',
+                        relief="groove")
+    button2.place(relx=0.33, rely=0.34, relwidth=0.34, relheight=0.05)
 
-    button3 = tk.Button(frame, text='Create Heat Map', bg='#620000', font=('Calibri', 30), highlightthickness=0, bd=0,
-                        activebackground='#800000', activeforeground='#ffffff', command=lambda: heat_map(), pady=0.02,
-                        fg='#ffffff')
-    button3.place(relx=0.38, rely=0.36, relwidth=0.24, relheight=0.05)
+    button3 = tk.Button(frame, text='Create Heat Map', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
+                        activebackground='#D4D4D4', activeforeground='#252525',
+                        command=lambda: heat_map(), pady=0.02, fg='#373737', borderwidth='2',
+                        relief="groove")
+    button3.place(relx=0.33, rely=0.40, relwidth=0.34, relheight=0.05)
 
-    button4 = tk.Button(frame, text='Transfer Data to .csv', bg='#620000', font=('Calibri', 30), highlightthickness=0,
-                        bd=0, activebackground='#800000', activeforeground='#ffffff',
-                        command=lambda: set_curr_func("to_csv"), pady=0.02, fg='#ffffff')
-    button4.place(relx=0.34, rely=0.43, relwidth=0.32, relheight=0.05)
+    button4 = tk.Button(frame, text='Transfer Data to .csv', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
+                        bd=0, activebackground='#D4D4D4', activeforeground='#252525',
+                        command=lambda: set_curr_func("to_csv"), pady=0.02, fg='#373737', borderwidth='2',
+                        relief="groove")
+    button4.place(relx=0.33, rely=0.46, relwidth=0.34, relheight=0.05)
 
     root.mainloop()
     if path.exists("temp.png"):
