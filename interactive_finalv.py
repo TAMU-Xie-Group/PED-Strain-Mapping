@@ -5,6 +5,7 @@
 # The second part calculates the distance in diffraction patterns
 # The third part generates strain maps
 
+import time
 from os import remove, path
 import plotly.express as px
 from csv import writer
@@ -14,7 +15,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib import cm
 from matplotlib import colors
 import matplotlib.pyplot as plt
-from multiprocessing import Array
+from multiprocessing import Array, Pool
+import tqdm
 from numpy import sqrt, array, ndenumerate, arange, percentile, linspace, zeros, mean
 from numpy.ctypeslib import as_array
 from pandas import DataFrame
@@ -28,11 +30,13 @@ from scipy.ndimage import gaussian_filter
 from skimage.restoration import estimate_sigma, denoise_nl_means
 from scipy.signal import wiener
 
+
 # global variables
 file = None  # input file
 distances = None  # distances for all peak points in image
 single_values = None  # input values
 curr_func = None  # current function
+shared_array = None
 
 
 # changes curr_func to user selected function (used in buttons in UI)
@@ -113,10 +117,8 @@ def find_center(im, peak):
 # performs template matching and finds peak points in diffraction spots
 # calculates distances for all peak points in image
 def multiprocessing_func(values):
-    global single_values, distances
-    s = PixelatedSTEM(file.inav[values[0], values[1]])
 
-    original = array(s)
+    original = values[1]
     ####################################################################################################################
     # # FILTERS
     # Gaussian is the default filter
@@ -166,7 +168,8 @@ def multiprocessing_func(values):
             else:
                 j = j + 1
         max = 0
-        pnt = temp[0]
+        if temp:
+            pnt = temp[0]
         for j in range(len(temp)):
             if result[pnt[0]][pnt[1]] < result[temp[j][0]][temp[j][1]]:
                 max = result[temp[j][0]][temp[j][1]]
@@ -188,15 +191,13 @@ def multiprocessing_func(values):
         for (x, y) in j:
             if 2 < y < length - 2 and 2 < x < length - 2:
                 di = distance(center[0], center[1], y, x)
-                distances[values[1]][values[0]][idx] = round(di, 3)
                 idx += 1
-            dis = distance(values[2], values[3], y, x)
+            dis = distance(values[0][2], values[0][3], y, x)
             if dis < minimum and dis < length / 10:
                 minimum = dis
                 closest_point = (y, x)
     pos_distance = distance(closest_point[0], closest_point[1], center[0], center[1])
-    single_values[values[1]][values[0]] = round(pos_distance, 4)
-    print(values[0], values[1], closest_point, pos_distance, center)
+    return values[0][0], values[0][1], closest_point, pos_distance, center
 
 
 # creates pop-up UI where user can select a point on the image
@@ -253,10 +254,16 @@ def analysis(pointxy, values):
     ROW = int(t[0])
     COL = int(t[1])
 
-    list = []
+    list = [[]]
+    i = 0
+    img_array = array(PixelatedSTEM(file))
     for r in range(ROW):
         for c in range(COL):
-            list.append((r, c, pointxy[0], pointxy[1]))
+            list.append([])
+            list[i].append([r, c, pointxy[0], pointxy[1]])
+            list[i].append(img_array[r, c])
+            i += 1
+    del list[-1]
 
     shared_array_base = Array(c_double, ROW * COL)
     single_values = as_array(shared_array_base.get_obj())
@@ -266,9 +273,21 @@ def analysis(pointxy, values):
     distances = as_array(shared_array.get_obj())
     distances = distances.reshape(COL, ROW, 50)
 
-    # calling multiprocessing function with a single thread (to be updated)
-    for i in range(len(list)):
-        multiprocessing_func(list[i])
+    start_time = time.time()
+
+    # Running the multiprocessing_func with a pool of processes to increase calculation time.
+    # tqdm is a progress bar function that prints to the console.
+    results = []
+    pool = Pool(processes=None)
+    for output in tqdm.tqdm(pool.imap_unordered(multiprocessing_func, list), total=len(list)):
+        results.append(output)
+        pass
+    pool.close()
+
+    for i in range(len(results)):
+        single_values[results[i][1]][results[i][0]] = results[i][3]
+
+    print('Calculation time:', round(time.time() - start_time, 2))
 
     entry.delete(0, tk.END)
     f = open("Distances", "w")
