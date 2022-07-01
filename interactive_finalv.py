@@ -287,6 +287,11 @@ def analysis(pointxy, values):
     for i in range(len(results)):
         single_values[results[i][1]][results[i][0]] = results[i][3]
 
+    for i in range(len(single_values)):
+        for j in range(len(single_values[i])):
+            if single_values[i][j] == 0:
+                single_values[i][j] = float('NaN')
+
     print('Calculation time:', round(time.time() - start_time, 2))
 
     entry.delete(0, tk.END)
@@ -313,41 +318,6 @@ def to_csv(filename=None):
     # entry.unbind("<Return>")
 
 
-# creates heat map (used by bar_chart function)
-def heat_map_maker(minimum, maximum, parity=0):
-    global single_values, distances
-
-    if parity == 0:
-        data = single_values.copy()
-        df = DataFrame(data, columns=arange(len(data[0])), index=arange(len(data)))
-        _, a = plt.subplots(figsize=(6, 5.5))
-        chart1 = heatmap(df, cmap=cm.get_cmap("rainbow"), ax=a, vmin=minimum, vmax=maximum, square=True)
-        return chart1.get_figure()
-    else:
-        data = zeros((len(single_values), len(single_values[0])), dtype=float)
-        for i in range(len(distances)):
-            for j in range(len(distances[i])):
-                sum = 0
-                num = 0
-                for k in distances[i][j]:
-                    if minimum < k < maximum:
-                        sum += k
-                        num += 1
-                if num > 0:
-                    data[i][j] = round(sum / num, 1)
-
-        df = DataFrame(data, columns=arange(len(data[0])), index=arange(len(data)))
-        _, a = plt.subplots(figsize=(6, 5.5))
-        gray = cm.get_cmap('gray', 512)
-        newcolors = gray(linspace(0.15, 0.85, 2048))
-        white = array([255 / 256, 255 / 256, 255 / 256, 1])
-        newcolors[:1, :] = white
-        newcolors[2047:, :] = white
-        newcmp = colors.ListedColormap(newcolors)
-        chart = heatmap(df, cmap=newcmp, vmin=minimum, vmax=maximum, square=True)
-        return chart.get_figure()
-
-
 # creates bar chart pop-up UI
 def bar_chart(INTERVAL=0.1):
     global distances
@@ -362,34 +332,17 @@ def bar_chart(INTERVAL=0.1):
         dist = single_values.flatten()
 
         fig, a = plt.subplots(figsize=(6, 5.5))
-        plt.xlabel('Distance from center peek', fontsize=10)
+        plt.xlabel('Distance from center peak', fontsize=10)
         plt.ylabel('Counts', fontsize=10)
         plt.title('Distance Counts', fontsize=10)
         # plt.bar(y_pos, counts, align='center', alpha=0.95) # creates the bar plot
         plt.hist(dist, bins=500)
 
-        # calls heat_map_maker function upon user input
-        def scope_heat_map(event):
-            values = e.get().split(" ")
-            minimum = float(values[0])
-            maximum = float(values[1])
-            f = heat_map_maker(minimum, maximum, 1)
-            chart_type = FigureCanvasTkAgg(f, bar_chart_window)
-            chart_type.draw()
-            chart_type.get_tk_widget().place(relx=0.51, rely=0.2)
-
         bar_chart_window = tk.Toplevel(root)
-        bar_chart_window.geometry('1200x760')
+        bar_chart_window.geometry('600x600')
         chart_type = FigureCanvasTkAgg(plt.gcf(), bar_chart_window)
         chart_type.draw()
-        chart_type.get_tk_widget().place(relx=0.0, rely=0.2, relwidth=0.5)
-        m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, width=1000, justify='center')
-        m['text'] = "Enter the minimum value and the maximum value (exclusive) separated by a space.\nPress Enter to " \
-                    "create the heatmap with these specifications."
-        m.place(relx=0.25, rely=0.05)
-        e = tk.Entry(bar_chart_window, font=('Calibri', 15))
-        e.place(relx=0.44, rely=0.14)
-        e.bind("<Return>", scope_heat_map)
+        chart_type.get_tk_widget().place(relx=0.0, rely=0.0, relwidth=1)
 
 
 # calculates and returns thresholds for lower and upper outliers in a given array
@@ -487,12 +440,14 @@ if __name__ == "__main__":
     label1.place(relx=0.05, rely=0.05, anchor='w')
 
     # Menu Label
-    label = tk.Label(frame, text='Menu', bg='#FFFFFF', font=('Times New Roman', 40), fg='#373737')
-    label.place(relx=0.40, rely=0.1, relwidth=0.2, relheight=0.1)
+    label = tk.Label(frame, text='PED Strain Mapping', bg='#FFFFFF', font=('Times New Roman', 40), fg='#373737')
+    label.place(relx=0.20, rely=0.1, relwidth=0.6, relheight=0.1)
 
     # Text Output box
     label1 = tk.Message(frame, bg='#F3F3F3', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0,
                         bd=0, width=1500, fg='#373737', borderwidth=2, relief="groove")
+    label1['text'] = "This program was originally designed by Aniket Patel and Aaron Barbosa \nand modified by " \
+                     "Marcus Hansen and Ainiu Wang."
     label1.place(relx=0.1, rely=0.54, relwidth=0.8, relheight=0.32)
 
     # Entry box
@@ -505,31 +460,31 @@ if __name__ == "__main__":
                        activebackground='#D4D4D4', activeforeground='#252525',
                        command=lambda: load_file(), pady=0.02, fg='#373737', borderwidth='2',
                        relief="groove")
-    button.place(relx=0.33, rely=0.22, relwidth=0.34, relheight=0.05)
+    button.place(relx=0.29, rely=0.22, relwidth=0.42, relheight=0.05)
 
     button1 = tk.Button(frame, text='Start Analysis', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
                         activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: set_curr_func("analysis"), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
-    button1.place(relx=0.33, rely=0.28, relwidth=0.34, relheight=0.05)
+    button1.place(relx=0.29, rely=0.28, relwidth=0.42, relheight=0.05)
 
     button2 = tk.Button(frame, text='Create Bar Chart', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
                         activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: bar_chart(), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
-    button2.place(relx=0.33, rely=0.34, relwidth=0.34, relheight=0.05)
+    button2.place(relx=0.29, rely=0.34, relwidth=0.42, relheight=0.05)
 
     button3 = tk.Button(frame, text='Create Heat Map', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
                         activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: heat_map(), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
-    button3.place(relx=0.33, rely=0.40, relwidth=0.34, relheight=0.05)
+    button3.place(relx=0.29, rely=0.40, relwidth=0.42, relheight=0.05)
 
-    button4 = tk.Button(frame, text='Transfer Data to .csv', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
+    button4 = tk.Button(frame, text='Export Distance Data to .csv', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
                         bd=0, activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: set_curr_func("to_csv"), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
-    button4.place(relx=0.33, rely=0.46, relwidth=0.34, relheight=0.05)
+    button4.place(relx=0.29, rely=0.46, relwidth=0.42, relheight=0.05)
 
     root.mainloop()
     if path.exists("temp.png"):
