@@ -49,6 +49,7 @@ def filter_and_analyze():
         sigma_est = mean(estimate_sigma(original, ))
         gaussian = gaussian_filter(original, 1.15 * sigma_est)
 
+        # replace parameter of array() with filtered img
         filtered = array(gaussian)
 
         im = Image.fromarray(filtered)
@@ -163,7 +164,9 @@ if __name__ == "__main__":
     # Text Output box
     label3 = tk.Message(frame, bg='#F3F3F3', font=('Calibri', 15), anchor='nw', justify='left', highlightthickness=0,
                         bd=0, width=1500, fg='#373737', borderwidth=2, relief="groove")
-    label3.place(relx=0.2, rely=0.56, relwidth=0.6, relheight=0.35)
+    label3['text'] = "This program was designed by Ainiu Wang and Marcus Hansen, " \
+                     "\nusing code developed by Aniket Patel and Aaron Barbosa."
+    label3.place(relx=0.15, rely=0.56, relwidth=0.7, relheight=0.35)
 
     # Buttons
     button1 = tk.Button(frame, text='Load File', bg='#F3F3F3', font=('Calibri', 30), highlightthickness=0, bd=0,
