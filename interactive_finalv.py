@@ -7,28 +7,26 @@
 
 import time
 from os import remove, path
+
+import numpy as np
 import plotly.express as px
 from csv import writer
 from ctypes import c_double
 from hyperspy.api import load
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib import cm
-from matplotlib import colors
 import matplotlib.pyplot as plt
 from multiprocessing import Array, Pool
 import tqdm
-from numpy import sqrt, array, ndenumerate, arange, percentile, linspace, zeros, mean
+from numpy import sqrt, array, ndenumerate, arange, percentile, mean
 from numpy.ctypeslib import as_array
 from pandas import DataFrame
 from PIL import Image, ImageTk
 from pixstem.api import PixelatedSTEM
-from seaborn import heatmap
 import tkinter as tk
 from tkinter import filedialog
 from skimage.feature import match_template
 from scipy.ndimage import gaussian_filter
-from skimage.restoration import estimate_sigma, denoise_nl_means
-from scipy.signal import wiener
+from skimage.restoration import estimate_sigma
 
 
 # global variables
@@ -53,14 +51,23 @@ def set_curr_func(func_name):
         else:
             entry.bind("<Return>", get_entry)
             label1['text'] = "Please enter the path of the file you want to save to in the\ntext box " \
-                              "provided then press Enter.\n "
+                             "provided then press Enter.\n "
     elif curr_func == "analysis":
         if file is None:
             label1['text'] = "Please load a file before starting analysis.\n"
         else:
             entry.bind("<Return>", get_entry)
             label1['text'] = "Please enter the number of rows and columns you would like to " \
-                              "analyze,\nas integers, separated by spaces. Press Enter when ready.\n"
+                             "analyze,\nas integers, separated by spaces. Press Enter when ready.\n"
+    elif curr_func == 'heat map':
+        if file is None:
+            label1['text'] = "Please load a file before creating a heat map.\n"
+        elif distances is None:
+            label1['text'] = "Please analyze the file before creating a heat map.\n"
+        else:
+            label1['text'] = 'Please enter a strain-free distance value for comparison. \nFor reference, ' \
+                             f'average distance of the dataset is {round(np.average(single_values), 3)}'
+            entry.bind("<Return>", get_entry)
 
 
 # executes current function upon keyboard event (used in set_curr_func)
@@ -75,6 +82,9 @@ def get_entry(event):
     elif curr_func == "to_csv":
         entry.unbind("<Return>")
         to_csv(entry.get())
+    elif curr_func == 'heat map':
+        entry.unbind("<Return>")
+        heat_map(entry.get())
 
 
 # opens file explorer for user to select file
@@ -287,11 +297,6 @@ def analysis(pointxy, values):
     for i in range(len(results)):
         single_values[results[i][1]][results[i][0]] = results[i][3]
 
-    for i in range(len(single_values)):
-        for j in range(len(single_values[i])):
-            if single_values[i][j] == 0:
-                single_values[i][j] = float('NaN')
-
     print('Calculation time:', round(time.time() - start_time, 2))
 
     entry.delete(0, tk.END)
@@ -358,65 +363,70 @@ def outlier(data):
 
 # opens a heat map as a tab in browser
 # creates pop-up UI that can bring up user-requested diffraction patterns
-def heat_map():
+def heat_map(input_distance):
     import hyperspy.api as hs
     global single_values
-    if file is None:
-        label1['text'] = "Please load a file before creating a heat map.\n"
-    elif distances is None:
-        label1['text'] = "Please analyze the file before creating a heat map.\n"
-    else:
-        data = single_values.copy()
-        df = DataFrame(data, columns=arange(len(data[0])), index=arange(len(data)))
-        print(df)
-        print(single_values)
-        fig = px.imshow(df, color_continuous_scale=["blue", "green", "red"])
-        fig.show()
+    data = single_values.copy()
+    d0 = float(input_distance)
 
-        # creates diffraction pattern pop-up windows
-        def image_gallery(event):
-            global file
-            values = e.get().split(" ")
-            x0 = int(values[0])
-            y0 = int(values[1])
-            x1 = int(values[2])
-            y1 = int(values[3])
-            indexx = x1
+    strain_values = []
+    for i in range(len(data)):
+        strain_values.append([])
+        for j in range(len(data[i])):
+            if data[i][j] == 0:
+                strain_values[i].append(float('NaN'))
+            else:
+                strain_values[i].append((d0 / int(data[i][j])) - 1)
 
-            for x in range(x1 - x0 + 1):
-                indexy = y1
-                for y in range(y1 - y0 + 1):
-                    s = PixelatedSTEM(hs.signals.Signal2D(file.inav[indexx, indexy]))
-                    st = s.template_match_ring(r_inner=1, r_outer=6, lazy_result=True, show_progressbar=False)
-                    peak_array = st.find_peaks(method='dog', min_sigma=0.8, max_sigma=15, sigma_ratio=1.9,
-                                               threshold=0.42, overlap=0.5, lazy_result=False, show_progressbar=True)
-                    s.add_peak_array_as_markers(peak_array)
-                    # plt.plot(s)
-                    s.plot()
-                    ax = s._plot.signal_plot.ax
-                    ax.set_xlabel("pixel(" + str(indexx) + "_" + str(indexy) + ")")
-                    # plt.title("pixel(" + str(indexx) + "_" + str(indexy) + ")")
-                    # plt.show()
-                    indexy -= 1
-                    y += 1
-                indexx -= 1
-                x += 1
-            plt.show()
+    df = DataFrame(strain_values, columns=arange(len(strain_values[0])), index=arange(len(strain_values)))
+    print(df)
+    fig = px.imshow(df, color_continuous_midpoint=0, color_continuous_scale='rainbow')
+    fig.show()
 
-        # creates pop-up UI that calls image_gallery upon user input
-        bar_chart_window = tk.Toplevel(root)
-        bar_chart_window.geometry('500x400')
-        m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, justify='left')
-        m['text'] = "A new window should open displaying the heatmap created. If you would like to view specific " \
-                    "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
-                    "separated by a space. Press Enter to display these diffraction patterns."
-        m.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.5)
-        e = tk.Entry(bar_chart_window, bg='#F4F4F4', font=('Calibri', 15), justify='left', highlightthickness=0,
-                     bd=0, fg='#373737', borderwidth=2, relief="groove")
-        e.place(relx=0.1, rely=0.7, relwidth=0.8, relheight=0.1)
-        e.bind("<Return>", image_gallery)
+    # creates diffraction pattern pop-up windows
+    def image_gallery(event):
+        global file
+        values = e.get().split(" ")
+        x0 = int(values[0])
+        y0 = int(values[1])
+        x1 = int(values[2])
+        y1 = int(values[3])
+        indexx = x1
 
-        bar_chart_window.mainloop()
+        for x in range(x1 - x0 + 1):
+            indexy = y1
+            for y in range(y1 - y0 + 1):
+                s = PixelatedSTEM(hs.signals.Signal2D(file.inav[indexx, indexy]))
+                st = s.template_match_ring(r_inner=1, r_outer=6, lazy_result=True, show_progressbar=False)
+                peak_array = st.find_peaks(method='dog', min_sigma=0.8, max_sigma=15, sigma_ratio=1.9,
+                                           threshold=0.42, overlap=0.5, lazy_result=False, show_progressbar=True)
+                s.add_peak_array_as_markers(peak_array)
+                # plt.plot(s)
+                s.plot()
+                ax = s._plot.signal_plot.ax
+                ax.set_xlabel("pixel(" + str(indexx) + "_" + str(indexy) + ")")
+                # plt.title("pixel(" + str(indexx) + "_" + str(indexy) + ")")
+                # plt.show()
+                indexy -= 1
+                y += 1
+            indexx -= 1
+            x += 1
+        plt.show()
+
+    # creates pop-up UI that calls image_gallery upon user input
+    bar_chart_window = tk.Toplevel(root)
+    bar_chart_window.geometry('500x400')
+    m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, justify='left')
+    m['text'] = "A new window should open displaying the heatmap created. If you would like to view specific " \
+                "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
+                "separated by a space. Press Enter to display these diffraction patterns."
+    m.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.5)
+    e = tk.Entry(bar_chart_window, bg='#F4F4F4', font=('Calibri', 15), justify='left', highlightthickness=0,
+                 bd=0, fg='#373737', borderwidth=2, relief="groove")
+    e.place(relx=0.1, rely=0.7, relwidth=0.8, relheight=0.1)
+    e.bind("<Return>", image_gallery)
+
+    bar_chart_window.mainloop()
 
 
 # main menu UI
@@ -474,9 +484,9 @@ if __name__ == "__main__":
                         relief="groove")
     button2.place(relx=0.29, rely=0.34, relwidth=0.42, relheight=0.05)
 
-    button3 = tk.Button(frame, text='Create Heat Map', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
+    button3 = tk.Button(frame, text='Create Strain Heat Map', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0, bd=0,
                         activebackground='#D4D4D4', activeforeground='#252525',
-                        command=lambda: heat_map(), pady=0.02, fg='#373737', borderwidth='2',
+                        command=lambda: set_curr_func('heat map'), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
     button3.place(relx=0.29, rely=0.40, relwidth=0.42, relheight=0.05)
 
