@@ -35,7 +35,8 @@ distances = None  # distances for all peak points in image
 single_values = None  # input values
 curr_func = None  # current function
 shared_array = None
-
+point1 = None  # user-selected point 1
+point2 = None  # user-selected point 2
 
 # changes curr_func to user selected function (used in buttons in UI)
 # displays instructions in UI
@@ -67,7 +68,7 @@ def set_curr_func(func_name):
         else:
             label1['text'] = 'Please enter a strain-free distance value for comparison. \nFor reference, ' \
                              f'average distance of the dataset is {round(np.average(single_values), 3)}\n' \
-                             'If the distribution is bimodal or multimodal, reference the histogram for the desired ' \
+                             'If the distribution is bimodal or multimodal, reference the histogram \nfor the desired '\
                              'distance.'
             entry.bind("<Return>", get_entry)
 
@@ -212,55 +213,89 @@ def multiprocessing_func(values):
     return values[0][0], values[0][1], closest_point, pos_distance, center
 
 
-# creates pop-up UI where user can select a point on the image
-# calls analysis function with selected point
+# creates pop-up UI where user can select 2 points on the image
+# calls analysis function with selected 2 points
 def start_analysis(values=None):
-    global file, curr_func
-    pointxy = None
-    if pointxy is None:
-        def mouse_coords(event):
-            s = PixelatedSTEM(file.inav[25, 25])
-            length = len(array(s))
-            pointxy = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
-            analysis_log['text'] = analysis_log['text'] + str(pointxy[0]) + " " + str(pointxy[1]) + "\n"
+    global file, curr_func, point1, point2
+
+    def reset_coords():
+        global point1, point2
+        point1 = None
+        point2 = None
+        analysis_log['text'] = "Strain mapping: please click on the two points you would like to " \
+                               "analyze from the diffraction pattern above.\n"
+
+    def confirm_coords():
+        global point1, point2
+        if point1 is not None and point2 is not None:
+            print("Selected points are ", point1, " and ", point2)
             analysis_log['text'] = analysis_log['text'] + "Starting analysis...\n"
-            r.update()
-            analysis(pointxy, values)
+            analysis(point1, values)
             remove("temp.png")
             c2.unbind('<Button-1>')
             r.destroy()
             label1['text'] = label1['text'] + "Analysis complete.\n"
+        else:
+            reset_coords()
 
+    def mouse_coords(event):
         s = PixelatedSTEM(file.inav[25, 25])
-        s.save("temp.png")
-        img = Image.open("temp.png")
-        img = img.resize((400, 400), Image.ANTIALIAS)
-        img.save('temp.png')
+        length = len(array(s))
+        global point1, point2
+        if point1 is None:
+            point1 = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
+            analysis_log['text'] = analysis_log['text'] + str(point1[0]) + " " + str(point1[1]) + "\n"
+            print("point1 is ", point1)
+        elif point2 is None:
+            point2 = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
+            analysis_log['text'] = analysis_log['text'] + str(point2[0]) + " " + str(point2[1]) + "\n"
+            print("point2 is ", point2)
+        r.update()
 
-        r = tk.Toplevel(root)
+    s = PixelatedSTEM(file.inav[25, 25])
+    s.save("temp.png")
+    img = Image.open("temp.png")
+    img = img.resize((400, 400))
+    img.save('temp.png')
 
-        c = tk.Canvas(r, height=600, width=840)
-        c.pack()
-        f = tk.Frame(r, bg='#FFFFFF')
-        f.place(relwidth=1, relheight=1)
-        analysis_log = tk.Message(f, bg='#FFFFFF', font=('Calibri', 15), anchor='nw', justify='left',
-                                  highlightthickness=0, bd=0, width=756)
-        analysis_log.place(relx=0.05, rely=0.7, relwidth=0.9, relheight=0.2)
-        c2 = tk.Canvas(r, width=400, height=400)
-        c2.place(relx=0.5, anchor='n')
-        img = ImageTk.PhotoImage(Image.open("temp.png"))
-        c2.create_image(0, 0, anchor='nw', image=img)
-        c2.bind('<Button-1>', mouse_coords)
-        analysis_log['text'] = analysis_log['text'] + "Strain mapping: \nPlease click on the point you would like to "\
-                                                      "analyze from the diffraction pattern above.\n"
-        r.mainloop()
-        if path.exists("temp.png"):
-            remove("temp.png")
+    r = tk.Toplevel(root)
+
+    c = tk.Canvas(r, height=640, width=840)
+    c.pack()
+    f = tk.Frame(r, bg='#FFFFFF')
+    f.place(relwidth=1, relheight=1)
+    analysis_log = tk.Message(f, bg='#FFFFFF', font=('Calibri', 15), anchor='nw', justify='left',
+                              highlightthickness=0, bd=0, width=756)
+    analysis_log.place(relx=0.05, rely=0.65, relwidth=0.9, relheight=0.2)
+
+    reset_button = tk.Button(f, text='Reset', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
+                             bd=0, activebackground='#D4D4D4', activeforeground='#252525',
+                             command=lambda: reset_coords(), pady=0.02, fg='#373737', borderwidth='2',
+                             relief="groove")
+    reset_button.place(relx=0.15, rely=0.90, relwidth=0.30, relheight=0.07)
+
+    confirm_button = tk.Button(f, text='Confirm', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
+                             bd=0, activebackground='#D4D4D4', activeforeground='#252525',
+                             command=lambda: confirm_coords(), pady=0.02, fg='#373737', borderwidth='2',
+                             relief="groove")
+    confirm_button.place(relx=0.55, rely=0.90, relwidth=0.30, relheight=0.07)
+
+    c2 = tk.Canvas(r, width=400, height=400)
+    c2.place(relx=0.5, anchor='n')
+    img = ImageTk.PhotoImage(Image.open("temp.png"))
+    c2.create_image(0, 0, anchor='nw', image=img)
+    c2.bind('<Button-1>', mouse_coords)
+    analysis_log['text'] = "Strain mapping: please click on the two points you would like to "\
+                           "analyze from the diffraction pattern above.\n"
+
+    r.mainloop()
+    if path.exists("temp.png"):
+        remove("temp.png")
 
 
 # calls multiprocessing function to calculate all distances
 # saves distances to new file
-def analysis(pointxy, values):
+def analysis(pointxy1, values):
     global file, single_values, distances
     t = values.split(" ")
     ROW = int(t[0])
@@ -272,7 +307,7 @@ def analysis(pointxy, values):
     for r in range(ROW):
         for c in range(COL):
             list.append([])
-            list[i].append([r, c, pointxy[0], pointxy[1]])
+            list[i].append([r, c, pointxy1[0], pointxy1[1]])
             list[i].append(img_array[r, c])
             i += 1
     del list[-1]
