@@ -66,7 +66,9 @@ def set_curr_func(func_name):
             label1['text'] = "Please analyze the file before creating a heat map.\n"
         else:
             label1['text'] = 'Please enter a strain-free distance value for comparison. \nFor reference, ' \
-                             f'average distance of the dataset is {round(np.average(single_values), 3)}'
+                             f'average distance of the dataset is {round(np.average(single_values), 3)}\n' \
+                             'If the distribution is bimodal or multimodal, reference the histogram for the desired ' \
+                             'distance.'
             entry.bind("<Return>", get_entry)
 
 
@@ -274,7 +276,7 @@ def analysis(pointxy, values):
             list[i].append(img_array[r, c])
             i += 1
     del list[-1]
-
+    del img_array
     shared_array_base = Array(c_double, ROW * COL)
     single_values = as_array(shared_array_base.get_obj())
     single_values = single_values.reshape(COL, ROW)
@@ -380,7 +382,7 @@ def heat_map(input_distance):
 
     df = DataFrame(strain_values, columns=arange(len(strain_values[0])), index=arange(len(strain_values)))
     print(df)
-    fig = px.imshow(df, color_continuous_midpoint=0, color_continuous_scale='rainbow')
+    fig = px.imshow(df, color_continuous_midpoint=0, zmin=-0.05, zmax=0.05, color_continuous_scale='turbo')
     fig.show()
 
     # creates diffraction pattern pop-up windows
@@ -488,13 +490,13 @@ if __name__ == "__main__":
                         activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: set_curr_func('heat map'), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
-    button3.place(relx=0.29, rely=0.40, relwidth=0.42, relheight=0.05)
+    button3.place(relx=0.29, rely=0.46, relwidth=0.42, relheight=0.05)
 
     button4 = tk.Button(frame, text='Export Distance Data to .csv', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
                         bd=0, activebackground='#D4D4D4', activeforeground='#252525',
                         command=lambda: set_curr_func("to_csv"), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
-    button4.place(relx=0.29, rely=0.46, relwidth=0.42, relheight=0.05)
+    button4.place(relx=0.29, rely=0.40, relwidth=0.42, relheight=0.05)
 
     root.mainloop()
     if path.exists("temp.png"):
