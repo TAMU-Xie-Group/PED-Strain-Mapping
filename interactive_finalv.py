@@ -112,15 +112,16 @@ def distance(x1, y1, x2, y2):
 
 
 # finds coordinate of center spot in image
-def find_center(im, peak):
-    center = (352, 382)
+def find_center(im, peak, xy2):
+    center = (xy2[0], xy2[1])
     minimum = 144
     for (i, j) in ndenumerate(peak):
         for (x, y) in j:
             length = len(im)
-            dist = distance(350, 380, y, x)
+            dist = distance(xy2[0], xy2[1], y, x)
             # d = distance(length/2, length/2, b, a)
-            if 340 < int(x) < 390 and 340 < int(y) < 370 and dist < minimum:
+            if int(xy2[0]*0.9) < int(x) < int(xy2[0]*1.1) and int(xy2[1]*0.9) < int(y) < int(xy2[1]*1.1)\
+                    and dist < minimum:
                 minimum = dist
                 center = (y, x)
     return center
@@ -168,6 +169,7 @@ def multiprocessing_func(values):
         for j in range(len(result[i])):
             if result[i][j] > 0.87:  # correlation value
                 tempList.append((i, j))
+
     # removes duplicate spots that are too close to each other
     peaks_list = []
     while len(tempList) > 0:
@@ -190,8 +192,7 @@ def multiprocessing_func(values):
         peaks_list.append(pnt)
     peak_array_rem_com = [[], peaks_list]
     ####################################################################################################################
-
-    center = find_center(filtered, peak_array_rem_com)
+    center = find_center(filtered, peak_array_rem_com, [values[0][4], values[0][5]])
     # finds the specific spot and adding that distance to the array
     pos_distance = 0
     closest_point = center
@@ -230,7 +231,7 @@ def start_analysis(values=None):
         if point1 is not None and point2 is not None:
             print("Selected points are ", point1, " and ", point2)
             analysis_log['text'] = analysis_log['text'] + "Starting analysis...\n"
-            analysis(point1, values)
+            analysis(point1, values, point2)
             remove("temp.png")
             c2.unbind('<Button-1>')
             r.destroy()
@@ -295,7 +296,7 @@ def start_analysis(values=None):
 
 # calls multiprocessing function to calculate all distances
 # saves distances to new file
-def analysis(pointxy1, values):
+def analysis(pointxy1, values, pointxy2):
     global file, single_values, distances
     t = values.split(" ")
     ROW = int(t[0])
@@ -307,7 +308,7 @@ def analysis(pointxy1, values):
     for r in range(ROW):
         for c in range(COL):
             list.append([])
-            list[i].append([r, c, pointxy1[0], pointxy1[1]])
+            list[i].append([r, c, pointxy1[0], pointxy1[1], pointxy2[0], pointxy2[1]])
             list[i].append(img_array[r, c])
             i += 1
     del list[-1]
@@ -421,49 +422,49 @@ def heat_map(input_distance):
     fig.show()
 
     # creates diffraction pattern pop-up windows
-    def image_gallery(event):
-        global file
-        values = e.get().split(" ")
-        x0 = int(values[0])
-        y0 = int(values[1])
-        x1 = int(values[2])
-        y1 = int(values[3])
-        indexx = x1
-
-        for x in range(x1 - x0 + 1):
-            indexy = y1
-            for y in range(y1 - y0 + 1):
-                s = PixelatedSTEM(hs.signals.Signal2D(file.inav[indexx, indexy]))
-                st = s.template_match_ring(r_inner=1, r_outer=6, lazy_result=True, show_progressbar=False)
-                peak_array = st.find_peaks(method='dog', min_sigma=0.8, max_sigma=15, sigma_ratio=1.9,
-                                           threshold=0.42, overlap=0.5, lazy_result=False, show_progressbar=True)
-                s.add_peak_array_as_markers(peak_array)
-                # plt.plot(s)
-                s.plot()
-                ax = s._plot.signal_plot.ax
-                ax.set_xlabel("pixel(" + str(indexx) + "_" + str(indexy) + ")")
-                # plt.title("pixel(" + str(indexx) + "_" + str(indexy) + ")")
-                # plt.show()
-                indexy -= 1
-                y += 1
-            indexx -= 1
-            x += 1
-        plt.show()
+    # def image_gallery(event):
+    #     global file
+    #     values = e.get().split(" ")
+    #     x0 = int(values[0])
+    #     y0 = int(values[1])
+    #     x1 = int(values[2])
+    #     y1 = int(values[3])
+    #     indexx = x1
+    #
+    #     for x in range(x1 - x0 + 1):
+    #         indexy = y1
+    #         for y in range(y1 - y0 + 1):
+    #             s = PixelatedSTEM(hs.signals.Signal2D(file.inav[indexx, indexy]))
+    #             st = s.template_match_ring(r_inner=1, r_outer=6, lazy_result=True, show_progressbar=False)
+    #             peak_array = st.find_peaks(method='dog', min_sigma=0.8, max_sigma=15, sigma_ratio=1.9,
+    #                                        threshold=0.42, overlap=0.5, lazy_result=False, show_progressbar=True)
+    #             s.add_peak_array_as_markers(peak_array)
+    #             # plt.plot(s)
+    #             s.plot()
+    #             ax = s._plot.signal_plot.ax
+    #             ax.set_xlabel("pixel(" + str(indexx) + "_" + str(indexy) + ")")
+    #             # plt.title("pixel(" + str(indexx) + "_" + str(indexy) + ")")
+    #             # plt.show()
+    #             indexy -= 1
+    #             y += 1
+    #         indexx -= 1
+    #         x += 1
+    #     plt.show()
 
     # creates pop-up UI that calls image_gallery upon user input
-    bar_chart_window = tk.Toplevel(root)
-    bar_chart_window.geometry('500x400')
-    m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, justify='left')
-    m['text'] = "A new window should open displaying the heatmap created. If you would like to view specific " \
-                "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
-                "separated by a space. Press Enter to display these diffraction patterns."
-    m.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.5)
-    e = tk.Entry(bar_chart_window, bg='#F4F4F4', font=('Calibri', 15), justify='left', highlightthickness=0,
-                 bd=0, fg='#373737', borderwidth=2, relief="groove")
-    e.place(relx=0.1, rely=0.7, relwidth=0.8, relheight=0.1)
-    e.bind("<Return>", image_gallery)
+    # bar_chart_window = tk.Toplevel(root)
+    # bar_chart_window.geometry('500x400')
+    # m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, justify='left')
+    # m['text'] = "A new window should open displaying the heatmap created. If you would like to view specific " \
+    #             "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
+    #             "separated by a space. Press Enter to display these diffraction patterns."
+    # m.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.5)
+    # e = tk.Entry(bar_chart_window, bg='#F4F4F4', font=('Calibri', 15), justify='left', highlightthickness=0,
+    #              bd=0, fg='#373737', borderwidth=2, relief="groove")
+    # e.place(relx=0.1, rely=0.7, relwidth=0.8, relheight=0.1)
+    # e.bind("<Return>", image_gallery)
 
-    bar_chart_window.mainloop()
+    # bar_chart_window.mainloop()
 
 
 # main menu UI
