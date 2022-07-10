@@ -4,7 +4,6 @@
 # The first part of the algorithm filters the PED data
 # The second part calculates the distance in diffraction patterns
 # The third part generates strain maps
-
 import time
 from os import remove, path
 
@@ -37,6 +36,8 @@ curr_func = None  # current function
 shared_array = None
 point1 = None  # user-selected point 1
 point2 = None  # user-selected point 2
+input_filename = None
+
 
 # changes curr_func to user selected function (used in buttons in UI)
 # displays instructions in UI
@@ -92,10 +93,11 @@ def get_entry(event):
 
 # opens file explorer for user to select file
 # assigns selected file to global file variable
-def load_file(filename=None):
-    global file
+def load_file():
+    global file, input_filename
     label1['text'] = "Loading file...\n"
     input_file = filedialog.askopenfilename()
+    input_filename = input_file
     root.update()
     try:
         file = load(input_file)
@@ -245,11 +247,11 @@ def start_analysis(values=None):
         global point1, point2
         if point1 is None:
             point1 = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
-            analysis_log['text'] = analysis_log['text'] + str(point1[0]) + " " + str(point1[1]) + "\n"
+            analysis_log['text'] = analysis_log['text'] + "point1 = " + str(point1[0]) + " " + str(point1[1]) + "\n"
             print("point1 is ", point1)
         elif point2 is None:
             point2 = (int(event.x * length / 400), int(event.y * length / 400))  # get the mouse position from event
-            analysis_log['text'] = analysis_log['text'] + str(point2[0]) + " " + str(point2[1]) + "\n"
+            analysis_log['text'] = analysis_log['text'] + "point2 = " + str(point2[0]) + " " + str(point2[1]) + "\n"
             print("point2 is ", point2)
         r.update()
 
@@ -313,6 +315,7 @@ def analysis(pointxy1, values, pointxy2):
             i += 1
     del list[-1]
     del img_array
+
     shared_array_base = Array(c_double, ROW * COL)
     single_values = as_array(shared_array_base.get_obj())
     single_values = single_values.reshape(COL, ROW)
@@ -351,11 +354,13 @@ def analysis(pointxy1, values, pointxy2):
 # creates and saves data to a csv file
 def to_csv(filename=None):
     global single_values
-    f = open(filename, "w")
-    w = writer(f)
-    for i in single_values:
-        w.writerow(i)
-    f.close()
+    data_types = [('All types(*.*)', '*.*'), ("csv file(*.csv)","*.csv")]
+    output_file = filedialog.asksaveasfilename(initialfile=f'{filename}_distances.csv', defaultextension='.csv',
+                                               filetypes=data_types)
+    with open(output_file, 'w') as f:
+        w = writer(f)
+        for i in single_values:
+            w.writerow(i)
     label1['text'] = label1['text'] + "File saved.\n"
     entry.delete(0, tk.END)
     # entry.unbind("<Return>")
@@ -418,53 +423,8 @@ def heat_map(input_distance):
 
     df = DataFrame(strain_values, columns=arange(len(strain_values[0])), index=arange(len(strain_values)))
     print(df)
-    fig = px.imshow(df, color_continuous_midpoint=0, zmin=-0.05, zmax=0.05, color_continuous_scale='turbo')
+    fig = px.imshow(df, color_continuous_midpoint=0, zmin=-0.07, zmax=0.07, color_continuous_scale='turbo')
     fig.show()
-
-    # creates diffraction pattern pop-up windows
-    # def image_gallery(event):
-    #     global file
-    #     values = e.get().split(" ")
-    #     x0 = int(values[0])
-    #     y0 = int(values[1])
-    #     x1 = int(values[2])
-    #     y1 = int(values[3])
-    #     indexx = x1
-    #
-    #     for x in range(x1 - x0 + 1):
-    #         indexy = y1
-    #         for y in range(y1 - y0 + 1):
-    #             s = PixelatedSTEM(hs.signals.Signal2D(file.inav[indexx, indexy]))
-    #             st = s.template_match_ring(r_inner=1, r_outer=6, lazy_result=True, show_progressbar=False)
-    #             peak_array = st.find_peaks(method='dog', min_sigma=0.8, max_sigma=15, sigma_ratio=1.9,
-    #                                        threshold=0.42, overlap=0.5, lazy_result=False, show_progressbar=True)
-    #             s.add_peak_array_as_markers(peak_array)
-    #             # plt.plot(s)
-    #             s.plot()
-    #             ax = s._plot.signal_plot.ax
-    #             ax.set_xlabel("pixel(" + str(indexx) + "_" + str(indexy) + ")")
-    #             # plt.title("pixel(" + str(indexx) + "_" + str(indexy) + ")")
-    #             # plt.show()
-    #             indexy -= 1
-    #             y += 1
-    #         indexx -= 1
-    #         x += 1
-    #     plt.show()
-
-    # creates pop-up UI that calls image_gallery upon user input
-    # bar_chart_window = tk.Toplevel(root)
-    # bar_chart_window.geometry('500x400')
-    # m = tk.Message(bar_chart_window, font=('Calibri', 15), highlightthickness=0, bd=0, justify='left')
-    # m['text'] = "A new window should open displaying the heatmap created. If you would like to view specific " \
-    #             "diffraction patterns, enter the starting x and the y value and the ending x and y value " \
-    #             "separated by a space. Press Enter to display these diffraction patterns."
-    # m.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.5)
-    # e = tk.Entry(bar_chart_window, bg='#F4F4F4', font=('Calibri', 15), justify='left', highlightthickness=0,
-    #              bd=0, fg='#373737', borderwidth=2, relief="groove")
-    # e.place(relx=0.1, rely=0.7, relwidth=0.8, relheight=0.1)
-    # e.bind("<Return>", image_gallery)
-
-    # bar_chart_window.mainloop()
 
 
 # main menu UI
@@ -530,7 +490,7 @@ if __name__ == "__main__":
 
     button4 = tk.Button(frame, text='Export Distance Data to .csv', bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
                         bd=0, activebackground='#D4D4D4', activeforeground='#252525',
-                        command=lambda: set_curr_func("to_csv"), pady=0.02, fg='#373737', borderwidth='2',
+                        command=lambda: to_csv(input_filename), pady=0.02, fg='#373737', borderwidth='2',
                         relief="groove")
     button4.place(relx=0.29, rely=0.40, relwidth=0.42, relheight=0.05)
 
