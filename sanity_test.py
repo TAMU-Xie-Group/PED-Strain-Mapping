@@ -4,6 +4,7 @@
 # shows peak points in diffraction spots on blurred image
 
 
+import requests
 import tkinter as tk
 from tkinter import filedialog
 from hyperspy.api import load
@@ -155,7 +156,8 @@ if __name__ == "__main__":
     frame.place(relwidth=1, relheight=1)
 
     # TAMU MSEN logo
-    image = Image.open('msen.png')
+    url = 'https://github.com/TAMU-Xie-Group/PED-Strain-Mapping/blob/main/msen.png?raw=true'
+    image = Image.open(requests.get(url, stream=True).raw)
     image = image.resize((200, 40))
     img = ImageTk.PhotoImage(image)
     label1 = tk.Label(frame, image=img, bg='#FFFFFF')
