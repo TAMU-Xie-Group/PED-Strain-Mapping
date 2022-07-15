@@ -6,7 +6,6 @@
 # The third part generates strain maps
 import time
 from os import remove, path
-
 import numpy as np
 import plotly.express as px
 from csv import writer
@@ -262,6 +261,7 @@ def start_analysis(values=None):
     img.save('temp.png')
 
     r = tk.Toplevel(root)
+    r.title('')
 
     c = tk.Canvas(r, height=640, width=840)
     c.pack()
@@ -393,17 +393,6 @@ def bar_chart(INTERVAL=0.1):
         chart_type.get_tk_widget().place(relx=0.0, rely=0.0, relwidth=1)
 
 
-# calculates and returns thresholds for lower and upper outliers in a given array
-def outlier(data):
-    data = data.flatten()
-    q1 = percentile(data, 25)
-    q3 = percentile(data, 75)
-    iqr = q3 - q1
-    minimum = q1 - (1.5 * iqr)
-    maximum = q3 + (1.5 * iqr)
-    return minimum, maximum
-
-
 # opens a heat map as a tab in browser
 # creates pop-up UI that can bring up user-requested diffraction patterns
 def heat_map(input_distance):
@@ -434,6 +423,7 @@ if __name__ == "__main__":
     WIDTH = 800
 
     root = tk.Tk()
+    root.title('')
 
     canvas = tk.Canvas(root, height=HEIGHT, width=WIDTH)
     canvas.pack()
