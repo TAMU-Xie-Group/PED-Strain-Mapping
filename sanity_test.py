@@ -36,8 +36,10 @@ def load_file():
 # calls display() function
 def filter_and_analyze():
     if file is not None:
-        s = PixelatedSTEM(file.inav[20, 20])
+        s = PixelatedSTEM(file.inav[36, 12])
         original = array(s)
+        # s = Image.open("Picture1.png")
+        # original = asarray(ImageOps.grayscale(s))
 
         # # FILTERS
         # Gaussian is the default filter
@@ -74,7 +76,7 @@ def distance(x1, y1, x2, y2):
 
 # finds the centers of diffraction spots in filtered image
 def find_peaks(input_img):
-    template = input_img[265:320, 265:320]  # CHANGE BASED ON IMAGE SIZE
+    template = input_img[260:315, 257:312]  # CHANGE BASED ON IMAGE SIZE
     result = match_template(input_img, template, pad_input=True)
     # only takes points greater than the threshold r-value
     tempList = []
@@ -111,6 +113,7 @@ def display(im, p_list, original):
     img_original = Image.fromarray(original)
 
     r = tk.Toplevel(root)
+    r.title('')
 
     c = tk.Canvas(r, width=img.size[1]*2.2, height=img.size[0]*1.1)
     c.pack()
@@ -125,7 +128,7 @@ def display(im, p_list, original):
 
     # draw centers in diffraction spots
     for p in p_list:
-        c2.create_oval(p[1]-2, p[0]-2, p[1]+2, p[0]+2, fill='#05FF00', outline='#05FF00')
+        c2.create_oval(p[1]-8, p[0]-8, p[1]+8, p[0]+8, fill='#ff0000', outline='#ff0000')
 
     # display original image
     c3 = tk.Canvas(r, width=img.size[1], height=img.size[0])
@@ -144,6 +147,7 @@ if __name__ == "__main__":
     WIDTH = 800
 
     root = tk.Tk()
+    root.title('')
 
     canvas = tk.Canvas(root, height=HEIGHT, width=WIDTH)
     canvas.pack()
