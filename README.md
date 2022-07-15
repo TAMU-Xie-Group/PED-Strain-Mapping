@@ -28,6 +28,6 @@ distance” based on the distance histogram, and the algorithm will create the �
 map”.
 
 
-### Instructions
-Download and save all Python files and the msen.png file into a folder to run. 
+### Instructions 
+Download both Python files and run (each program has its own UI).
 Video tutorial is available on YouTube: (insert link)
