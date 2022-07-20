@@ -37,6 +37,7 @@ def load_file():
 # calls display() function
 def filter_and_analyze():
     if file is not None:
+        # change values in 2d array below to choose image
         s = PixelatedSTEM(file.inav[36, 12])
         original = array(s)
         # s = Image.open("Picture1.png")
@@ -45,11 +46,10 @@ def filter_and_analyze():
         # # FILTERS
         # Gaussian is the default filter
         # Uncomment nlm (non-local means) or wien (wiener) to use those filters
+        sigma_est = mean(estimate_sigma(original, ))
         # # patch_size for 580 - 1, patch_size for 144 = 3
         # nlm = denoise_nl_means(original, h=1.15*sigma_est, fast_mode=True, patch_size=1, patch_distance=6, )
         # wien = wiener(original, 5, 3)
-
-        sigma_est = mean(estimate_sigma(original, ))
         gaussian = gaussian_filter(original, 1.15 * sigma_est)
 
         # replace parameter of array() with filtered img
