@@ -30,4 +30,4 @@ map”.
 
 ### Instructions 
 Download both Python files and run (each program has its own UI).
-Video tutorial is available on YouTube: https://www.youtube.com/watch?v=0osP1SG77tY
+Video tutorials are available on YouTube: https://www.youtube.com/playlist?list=PLzldQixzgawCiatAjgMeHAzG-c6JdX1V6
