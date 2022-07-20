@@ -1,6 +1,6 @@
 # PED Strain Mapping
 
-### Abstract
+### Overview
 In this work, we developed a method using the precession electron diffraction data to
 map the residual elastic strain at the nano-scale. The diffraction pattern of each pixel was
 first collected and denoised. Template matching was then applied using the center spot as
