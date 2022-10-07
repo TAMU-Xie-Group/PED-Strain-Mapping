@@ -4,11 +4,13 @@
 # The first part of the algorithm filters the PED data
 # The second part calculates the distance in diffraction patterns
 # The third part generates strain maps
+import io
 import time
 import requests
 from os import remove, path
 import numpy as np
 import plotly.express as px
+import plotly.io as pio
 from csv import writer
 from ctypes import c_double
 from hyperspy.api import load
@@ -16,7 +18,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from multiprocessing import Array, Pool
 import tqdm
-from numpy import sqrt, array, ndenumerate, arange, percentile, mean
+from numpy import sqrt, array, ndenumerate, arange, mean
 from numpy.ctypeslib import as_array
 from pandas import DataFrame
 from PIL import Image, ImageTk
@@ -67,8 +69,19 @@ def set_curr_func(func_name):
         elif distances is None:
             label1['text'] = "Please analyze the file before creating a heat map.\n"
         else:
-            label1['text'] = 'Please enter a strain-free distance value for comparison. \nFor reference, ' \
-                             f'average distance of the dataset is {round(np.average(single_values), 3)}\n' \
+            filtered_single_values = single_values.copy().flatten()
+            nonzero_svs = []
+            for i in range(len(filtered_single_values)):
+                if filtered_single_values[i] == 0:
+                    filtered_single_values[i] = float('NaN')
+                else:
+                    nonzero_svs.append(filtered_single_values[i])
+            n, bins, patches = plt.hist(filtered_single_values, bins=500)
+            label1['text'] = 'Please enter a strain-free distance value for comparison. \n' \
+                             f'For reference, here are some statistics from the dataset. \n' \
+                             f'Mean = {round(np.average(nonzero_svs), 3)}, ' \
+                             f'STD = {round(np.std(nonzero_svs), 3)}, Median = {round(np.median(nonzero_svs), 3)},' \
+                             f' Mode = {round((bins[n.argmax()] + bins[n.argmax()+1]) / 2, 3)}\n' \
                              'If the distribution is bimodal or multimodal, reference the histogram \nfor the desired '\
                              'distance.'
             entry.bind("<Return>", get_entry)
@@ -105,7 +118,6 @@ def load_file():
     except:
         label1['text'] = label1['text'] + "Error loading. Please check path and try again.\n"
     entry.delete(0, tk.END)
-    # entry.unbind("<Return>")
 
 
 # calculates distance between two points
@@ -119,9 +131,7 @@ def find_center(im, peak, xy2):
     minimum = 144
     for (i, j) in ndenumerate(peak):
         for (x, y) in j:
-            length = len(im)
             dist = distance(xy2[0], xy2[1], y, x)
-            # d = distance(length/2, length/2, b, a)
             if int(xy2[0]*0.9) < int(x) < int(xy2[0]*1.1) and int(xy2[1]*0.9) < int(y) < int(xy2[1]*1.1)\
                     and dist < minimum:
                 minimum = dist
@@ -142,12 +152,14 @@ def multiprocessing_func(values):
 
     sigma_est = mean(estimate_sigma(original, ))
     gaussian = gaussian_filter(original, 1.15 * sigma_est)
+    filtered = array(gaussian)
 
     # # patch_size for 580 - 1, patch_size for 144 = 3
     # nlm = denoise_nl_means(original, h=1.15*sigma_est, fast_mode=True, patch_size=1, patch_distance=6, )
     # wien = wiener(original, 5, 3)
 
-    filtered = array(gaussian)
+    # filtered = array(original)
+
     ####################################################################################################################
     # # PIXSTEM
 
@@ -184,19 +196,16 @@ def multiprocessing_func(values):
                 tempList.pop(j)
             else:
                 j = j + 1
-        max = 0
         if temp:
             pnt = temp[0]
         for j in range(len(temp)):
             if result[pnt[0]][pnt[1]] < result[temp[j][0]][temp[j][1]]:
-                max = result[temp[j][0]][temp[j][1]]
                 pnt = temp[j]
         peaks_list.append(pnt)
     peak_array_rem_com = [[], peaks_list]
     ####################################################################################################################
     center = find_center(filtered, peak_array_rem_com, [values[0][4], values[0][5]])
     # finds the specific spot and adding that distance to the array
-    pos_distance = 0
     closest_point = center
     idx = 0
     length = len(filtered)
@@ -206,7 +215,6 @@ def multiprocessing_func(values):
         minimum = 999999
         for (x, y) in j:
             if 2 < y < length - 2 and 2 < x < length - 2:
-                di = distance(center[0], center[1], y, x)
                 idx += 1
             dis = distance(values[0][2], values[0][3], y, x)
             if dis < minimum and dis < length / 10:
@@ -349,7 +357,6 @@ def analysis(pointxy1, values, pointxy2):
     f.close()
     label1['text'] = label1['text'] + "File saved.\n"
     entry.delete(0, tk.END)
-    # entry.unbind("<Return>")
 
 
 # creates and saves data to a csv file
@@ -358,13 +365,12 @@ def to_csv(filename=None):
     data_types = [('All types(*.*)', '*.*'), ("csv file(*.csv)","*.csv")]
     output_file = filedialog.asksaveasfilename(initialfile=f'{filename}_distances.csv', defaultextension='.csv',
                                                filetypes=data_types)
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', newline='') as f:
         w = writer(f)
         for i in single_values:
             w.writerow(i)
     label1['text'] = label1['text'] + "File saved.\n"
     entry.delete(0, tk.END)
-    # entry.unbind("<Return>")
 
 
 # creates bar chart pop-up UI
@@ -378,14 +384,17 @@ def bar_chart(INTERVAL=0.1):
         label1['text'] = "Creating bar chart.\n(This might take several minutes depending on the size " \
                          "of data.)\n"
         root.update()
-        dist = single_values.flatten()
+        filtered_single_values = single_values.copy().flatten()
+        for i in range(len(filtered_single_values)):
+            if filtered_single_values[i] == 0:
+                filtered_single_values[i] = float('NaN')
 
         fig, a = plt.subplots(figsize=(6, 5.5))
         plt.xlabel('Distance from center peak', fontsize=10)
         plt.ylabel('Counts', fontsize=10)
         plt.title('Distance Counts', fontsize=10)
         # plt.bar(y_pos, counts, align='center', alpha=0.95) # creates the bar plot
-        plt.hist(dist, bins=500)
+        plt.hist(filtered_single_values, bins=500)
 
         bar_chart_window = tk.Toplevel(root)
         bar_chart_window.geometry('600x600')
@@ -413,7 +422,11 @@ def heat_map(input_distance):
 
     df = DataFrame(strain_values, columns=arange(len(strain_values[0])), index=arange(len(strain_values)))
     print(df)
-    fig = px.imshow(df, color_continuous_midpoint=0, zmin=-0.07, zmax=0.07, color_continuous_scale='turbo')
+    fig = px.imshow(df, color_continuous_midpoint=0, zmin=-0.05, zmax=0.05, color_continuous_scale='turbo')
+    buf = io.BytesIO()
+    pio.write_image(fig, buf)
+    heat_img = Image.open(buf)
+    heat_img.show()
     fig.show()
 
 
