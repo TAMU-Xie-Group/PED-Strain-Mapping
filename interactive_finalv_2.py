@@ -22,8 +22,7 @@ from statistics import mode
 
 file = None  # Input dataset
 analysis_size = None  # Duple, size of selected slice from dataset, starting from top left corner
-point1 = None  # User-selected point 1
-point2 = None  # User-selected point 2
+points = []  # User-selected points
 distance_arr = []  # 2D matrix of distances between selected points for each pixel
 reciprocal_distance_arr = []  # 2D matrix of 1/distance for each pixel
 strain_arr = []  # 2D of strain value for each pixel
@@ -32,7 +31,7 @@ strain_arr = []  # 2D of strain value for each pixel
 # Creates window for previewing diffraction pattern with peaks highlighted
 # User can select two points for analysis
 def point_selection(entry_event):
-    global file, analysis_size, point1, point2, reciprocal_distance_arr, strain_arr
+    global file, analysis_size, points, reciprocal_distance_arr, strain_arr
 
     reciprocal_distance_arr = []
     strain_arr = []
@@ -42,18 +41,17 @@ def point_selection(entry_event):
     user_entry.delete(0, tk.END)
 
     def reset_coordinates():
-        global point1, point2
-        point1 = None
-        point2 = None
-        analysis_log['text'] = "Strain mapping: please click on the two points you would like to " \
+        global points
+        points = []
+        analysis_log['text'] = "Strain mapping: please click on the points you would like to " \
                                "analyze from the diffraction pattern above.\n"
 
     def confirm_coordinates():
-        global point1, point2
-        if point1 is not None and point2 is not None:
-            print("Selected points are ", point1, " and ", point2)
+        global points
+        if len(points) > 1:
+            print("Selected points are ", points)
             analysis_log['text'] = analysis_log['text'] + "Starting analysis...\n"
-            multiprocessing_func(point1, point2)  # Runs analysis with selected points
+            multiprocessing_func(points)  # Runs analysis with selected points
             c2.unbind('<Button-1>')
             r.destroy()
             label_output['text'] = "Analysis complete.\n"
@@ -61,15 +59,11 @@ def point_selection(entry_event):
             reset_coordinates()
 
     def get_mouse_coordinates(mouse_event):
-        global point1, point2
-        if point1 is None:
-            point1 = (int(mouse_event.x * image_len / 400), int(mouse_event.y * image_len / 400))  # get mouse position
-            analysis_log['text'] = analysis_log['text'] + "point1 = " + str(point1[0]) + " " + str(point1[1]) + "\n"
-            print("point1 is ", point1)
-        elif point2 is None:
-            point2 = (int(mouse_event.x * image_len / 400), int(mouse_event.y * image_len / 400))  # get mouse position
-            analysis_log['text'] = analysis_log['text'] + "point2 = " + str(point2[0]) + " " + str(point2[1]) + "\n"
-            print("point2 is ", point2)
+        global points
+        selected_point = (int(mouse_event.x * image_len / 400), int(mouse_event.y * image_len / 400))
+        analysis_log['text'] = analysis_log['text'] + str(selected_point) + " "
+        points.append(selected_point)
+        print("point1 is ", selected_point)
         r.update()
 
     r = tk.Toplevel(root)
@@ -114,7 +108,7 @@ def point_selection(entry_event):
         p = (p[0] * 400 / 580, p[1] * 400 / 580)  # resize for preview image
         c2.create_oval(p[1] - 4, p[0] - 4, p[1] + 4, p[0] + 4, fill='#ff0000', outline='#ff0000')
     c2.bind('<Button-1>', get_mouse_coordinates)
-    analysis_log['text'] = "Strain mapping: please click on the two points you would like to " \
+    analysis_log['text'] = "Strain mapping: please click on the points you would like to " \
                            "analyze from the diffraction pattern above.\n"
 
     r.mainloop()
@@ -123,7 +117,7 @@ def point_selection(entry_event):
 # Uses Pool to run several functions for each pixel of the dataset:
 # 1) Filtering, 2) Find peaks, 3) Calculate distance between selected points
 # Then appends results to distance_arr and reciprocal_distance_arr
-def multiprocessing_func(p1, p2):
+def multiprocessing_func(points_list):
     global file, analysis_size, distance_arr, reciprocal_distance_arr, strain_arr
 
     # Reset global variables
@@ -161,7 +155,7 @@ def multiprocessing_func(p1, p2):
     # Distance calculation
     point_distance_input = []
     for peak in results_peaks:
-        point_distance_input.append([peak, p1, p2])
+        point_distance_input.append([peak, points_list])
     del results_peaks
     results_distance = []
     print("Matching points and calculating distance for all diffraction patterns: ")
@@ -243,20 +237,23 @@ def calculate_distance(x1, y1, x2, y2):
 
 # Matches user-selected points to corresponding peaks in the diffraction pattern and returns the distance between them
 def calculate_points_distance(input_data):
-    peaks, p1, p2 = input_data[0], input_data[1], input_data[2]
-    peak1 = None
-    peak2 = None
+    peaks, points_list = input_data[0], input_data[1]
+    matched_peaks = []
     for peak in peaks:
-        if calculate_distance(peak[0], peak[1], p1[0], p1[1]) < 30:
-            peak1 = peak
-        if calculate_distance(peak[0], peak[1], p2[0], p2[1]) < 30:
-            peak2 = peak
+        for point in points_list:
+            if calculate_distance(peak[0], peak[1], point[0], point[1]) < 30:
+                matched_peaks.append(peak)
 
-    distance = float('NaN')
-    if peak1 is not None and peak2 is not None:
-        distance = calculate_distance(peak1[0], peak1[1], peak2[0], peak2[1])
-
-    return distance
+    matched_peaks = sorted(matched_peaks, key=lambda x: x[0])
+    distance_output = float('NaN')
+    if len(matched_peaks) > 1:
+        total_dist = 0
+        for i in range(len(matched_peaks) - 1):
+            distance = calculate_distance(matched_peaks[i][0], matched_peaks[i][1],
+                                          matched_peaks[i+1][0], matched_peaks[i+1][1])
+            total_dist += distance
+        distance_output = total_dist/(len(matched_peaks) - 1)
+    return distance_output
 
 
 # Using user-selected reciprocal distance statistic, calculates strain for each pixel and appends to strain_arr
