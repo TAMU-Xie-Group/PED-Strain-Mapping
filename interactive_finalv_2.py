@@ -20,15 +20,17 @@ import plotly.io as pio
 from pandas import DataFrame
 from statistics import mode
 
-file = None
-analysis_size = None
-point1 = None
-point2 = None
-distance_arr = []
-reciprocal_distance_arr = []
-strain_arr = []
+file = None  # Input dataset
+analysis_size = None  # Duple, size of selected slice from dataset, starting from top left corner
+point1 = None  # User-selected point 1
+point2 = None  # User-selected point 2
+distance_arr = []  # 2D matrix of distances between selected points for each pixel
+reciprocal_distance_arr = []  # 2D matrix of 1/distance for each pixel
+strain_arr = []  # 2D of strain value for each pixel
 
 
+# Creates window for previewing diffraction pattern with peaks highlighted
+# User can select two points for analysis
 def point_selection(entry_event):
     global file, analysis_size, point1, point2, reciprocal_distance_arr, strain_arr
 
@@ -51,7 +53,7 @@ def point_selection(entry_event):
         if point1 is not None and point2 is not None:
             print("Selected points are ", point1, " and ", point2)
             analysis_log['text'] = analysis_log['text'] + "Starting analysis...\n"
-            multiprocessing_func(point1, point2)
+            multiprocessing_func(point1, point2)  # Runs analysis with selected points
             c2.unbind('<Button-1>')
             r.destroy()
             label_output['text'] = "Analysis complete.\n"
@@ -100,15 +102,15 @@ def point_selection(entry_event):
     c2 = tk.Canvas(r, width=400, height=400)
     c2.place(relx=0.5, anchor='n')
 
+    # Create preview diffraction pattern with peaks highlighted
     preview_data = file.data[25, 25]
     preview_img = Image.fromarray(preview_data)
     preview_img = preview_img.resize((400, 400))
     preview_img = ImageTk.PhotoImage(preview_img)
-
     c2.create_image(0, 0, anchor='nw', image=preview_img)
-    preview_filtered = filter_img([preview_data, 0, 0, 0, 0])
+    preview_filtered = filter_img(preview_data)
     p_list = find_peaks(preview_filtered)
-    for p in p_list[0]:
+    for p in p_list:
         p = (p[0] * 400 / 580, p[1] * 400 / 580)  # resize for preview image
         c2.create_oval(p[1] - 4, p[0] - 4, p[1] + 4, p[0] + 4, fill='#ff0000', outline='#ff0000')
     c2.bind('<Button-1>', get_mouse_coordinates)
@@ -118,21 +120,27 @@ def point_selection(entry_event):
     r.mainloop()
 
 
+# Uses Pool to run several functions for each pixel of the dataset:
+# 1) Filtering, 2) Find peaks, 3) Calculate distance between selected points
+# Then appends results to distance_arr and reciprocal_distance_arr
 def multiprocessing_func(p1, p2):
     global file, analysis_size, distance_arr, reciprocal_distance_arr, strain_arr
 
+    # Reset global variables
     distance_arr, reciprocal_distance_arr, strain_arr = [], [], []
+
+    # Obtain diffraction patterns from selected slice of the dataset
     img_list = []
     for i in range(analysis_size[0]):
         for j in range(analysis_size[1]):
-            img_list.append([file.data[i][j], i, j, p1, p2])
+            img_list.append(file.data[i][j])
 
     # Filtering
     filtered_img_list = []
     print("Filtering all diffraction patterns: ")
     start_time = time.time()
     pool = Pool(processes=None)
-    for output in tqdm.tqdm(pool.imap_unordered(filter_img, img_list), total=len(img_list)):
+    for output in tqdm.tqdm(pool.imap(filter_img, img_list), total=len(img_list)):
         filtered_img_list.append(output)
         pass
     pool.close()
@@ -144,72 +152,70 @@ def multiprocessing_func(p1, p2):
     print("Finding peaks for all diffraction patterns: ")
     start_time = time.time()
     pool = Pool(processes=None)
-    for output in tqdm.tqdm(pool.imap_unordered(find_peaks, filtered_img_list), total=len(filtered_img_list)):
+    for output in tqdm.tqdm(pool.imap(find_peaks, filtered_img_list), total=len(filtered_img_list)):
         results_peaks.append(output)
         pass
     pool.close()
     print('Peak-finding time:', round(time.time() - start_time, 2))
 
     # Distance calculation
+    point_distance_input = []
+    for peak in results_peaks:
+        point_distance_input.append([peak, p1, p2])
+    del results_peaks
     results_distance = []
     print("Matching points and calculating distance for all diffraction patterns: ")
     start_time = time.time()
     pool = Pool(processes=None)
-    for output in tqdm.tqdm(pool.imap_unordered(calculate_points_distance, results_peaks),
-                            total=len(filtered_img_list)):
+    for output in tqdm.tqdm(pool.imap(calculate_points_distance, point_distance_input),
+                            total=len(point_distance_input)):
         results_distance.append(output)
         pass
     pool.close()
-    del results_peaks
-    sorted_distance = sorted(results_distance, key=lambda x: (x[1] * 10 + x[2]))
-    del results_distance
+    del point_distance_input
 
     # Creating distance and reciprocal distance list
-    for data in sorted_distance:
-        distance_arr.append(data[0])
-        if data[0] != float('NaN'):
-            reciprocal_distance_arr.append(1 / data[0])
+    for data in results_distance:
+        distance_arr.append(data)
+        if data != float('NaN'):
+            reciprocal_distance_arr.append(1 / data)
         else:
             reciprocal_distance_arr.append(float('NaN'))
-    del sorted_distance
+    del results_distance
     distance_arr = np.reshape(distance_arr, (-1, analysis_size[1]))
     reciprocal_distance_arr = np.reshape(reciprocal_distance_arr, (-1, analysis_size[1]))
     print("distance arr:", distance_arr)
     print('Calculation time:', round(time.time() - start_time, 2))
 
 
-def filter_img(input_data):
-    input_img, row, col, p1, p2 = input_data[0], input_data[1], input_data[2], input_data[3], input_data[4]
-
-
+# Returns a filtered image
+def filter_img(input_img):
     sigma_est = np.mean(estimate_sigma(input_img, ))
-    input_img = gaussian_filter(input_img, 1.15 * sigma_est)
+    filtered = gaussian_filter(input_img, 1.15 * sigma_est)
 
-    return [input_img, row, col, p1, p2]
+    im = Image.fromarray(filtered)
+    enhancer = ImageEnhance.Sharpness(im)
+    factor = 4
+    filtered = np.array(enhancer.enhance(factor))
+
+    return filtered
 
 
-# finds the centers of diffraction spots in filtered image
-def find_peaks(input_data):
-    input_img, row, col, p1, p2 = input_data[0], input_data[1], input_data[2], input_data[3], input_data[4]
-
-    # kernel = np.ones((10, 10), np.uint8)
-    # erosion = cv2.erode(input_img, kernel, iterations=1)
-    # input_img = erosion
-
+# Finds and returns the centers of all diffraction spots in image
+def find_peaks(input_img):
     # input_img = cv2.imread(input_img)
     # input_img = cv2.resize(input_img, (580, 580))
     template = input_img[260:315, 257:312]  # CHANGE BASED ON IMAGE SIZE
-    # slice1 = int(len(input_img)/2.2)
-    # slice2 = int(len(input_img)/1.8)
-    # template = input_img[slice1:slice2, slice1:slice2]
     result = match_template(input_img, template, pad_input=True)
-    # only takes points greater than the threshold r-value
+
+    # Only takes points greater than the threshold r-value
     temp_list = []
     for i in range(len(result)):
         for j in range(len(result[i])):
             if result[i][j] > 0.87:  # correlation value
                 temp_list.append((i, j))
-    # removes duplicate spots that are too close to each other
+
+    # Removes duplicate spots that are too close to each other
     peaks_list = []
     while len(temp_list) > 0:
         j = 0
@@ -217,7 +223,7 @@ def find_peaks(input_data):
         point = temp_list[0]
         while j < len(temp_list):
             if calculate_distance(point[0], point[1], temp_list[j][0], temp_list[j][1]) < 25:
-                # min center dist can be changed
+                # Min center dist can be changed
                 temp.append(temp_list[j])
                 temp_list.pop(j)
             else:
@@ -227,17 +233,17 @@ def find_peaks(input_data):
             if result[pnt[0]][pnt[1]] < result[temp[j][0]][temp[j][1]]:
                 pnt = temp[j]
         peaks_list.append(pnt)
-    return [peaks_list, row, col, p1, p2]
+    return peaks_list
 
 
-# calculates and returns distance between two points
+# Calculates and returns distance between two points
 def calculate_distance(x1, y1, x2, y2):
     return np.sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2))
 
 
+# Matches user-selected points to corresponding peaks in the diffraction pattern and returns the distance between them
 def calculate_points_distance(input_data):
-    peaks, row, col, p1, p2 = input_data[0], input_data[1], input_data[2], input_data[3], input_data[4]
-
+    peaks, p1, p2 = input_data[0], input_data[1], input_data[2]
     peak1 = None
     peak2 = None
     for peak in peaks:
@@ -250,9 +256,11 @@ def calculate_points_distance(input_data):
     if peak1 is not None and peak2 is not None:
         distance = calculate_distance(peak1[0], peak1[1], peak2[0], peak2[1])
 
-    return [distance, row, col]
+    return distance
 
 
+# Using user-selected reciprocal distance statistic, calculates strain for each pixel and appends to strain_arr
+# Then runs create_strain_map()
 def calculate_strain(event):
     global reciprocal_distance_arr, strain_arr, analysis_size
 
@@ -270,12 +278,14 @@ def calculate_strain(event):
     create_strain_map()
 
 
+# Using strain_arr, creates a strain heatmap and opens it in a new window and browser tab
 def create_strain_map():
     global file, strain_arr, distance_arr, reciprocal_distance_arr, analysis_size
 
     df = DataFrame(strain_arr, columns=np.arange(analysis_size[1]), index=np.arange(analysis_size[0]))
     print(df)
 
+    # Print strain statistics
     if len(strain_arr) > 0:
         print("Mean strain: ", round(np.nanmean(strain_arr), 8))
         print("Strain std: ", round(np.nanstd(strain_arr), 8))
@@ -291,7 +301,7 @@ def create_strain_map():
 ########################################################################################################################
 # BUTTON FUNCTIONS
 
-# prompts file dialog for user to select file
+# Prompts file dialog for user to select file
 def load_file():
     global file
     label_output['text'] = "Loading file...\n"
@@ -306,6 +316,7 @@ def load_file():
         label_output['text'] = label_output['text'] + "Error loading. Please check the file path and try again.\n"
 
 
+# Prompts user to enter two integers representing the size of the desired data, then runs point_selection
 def analysis():
     global file
     if file is None:
@@ -316,7 +327,7 @@ def analysis():
         user_entry.bind("<Return>", point_selection)
 
 
-# creates bar chart pop-up UI
+# Creates bar chart pop-up UI
 def bar_chart():
     global distance_arr
     if file is None:
@@ -345,8 +356,8 @@ def bar_chart():
         chart_type.get_tk_widget().place(relx=0.0, rely=0.0, relwidth=1)
 
 
-# opens a heat map as a tab in browser
-# creates pop-up UI that can bring up user-requested diffraction patterns
+# Prompts the user to enter the reciprocal distance statistic to be used for strain calculation
+# Then runs calculate_strain
 def begin_strain_map():
     global strain_arr
     if file is None:
@@ -366,7 +377,7 @@ def begin_strain_map():
         user_entry.bind("<Return>", calculate_strain)
 
 
-# main UI
+# Main UI
 if __name__ == "__main__":
     HEIGHT = 700
     WIDTH = 800
@@ -433,12 +444,5 @@ if __name__ == "__main__":
                         command=lambda: begin_strain_map(),
                         pady=0.02, fg='#373737', borderwidth='2', relief="groove")
     button4.place(relx=0.29, rely=0.40, relwidth=0.42, relheight=0.05)
-
-    # button5 = tk.Button(frame, text='Export Strain Data to .csv',
-    #                     bg='#F3F3F3', font=('Calibri', 20), highlightthickness=0,
-    #                     bd=0, activebackground='#D4D4D4', activeforeground='#252525',
-    #                     command=lambda: to_csv(input_filename),
-    #                     pady=0.02, fg='#373737', borderwidth='2', relief="groove")
-    # button5.place(relx=0.29, rely=0.46, relwidth=0.42, relheight=0.05)
 
     root.mainloop()
